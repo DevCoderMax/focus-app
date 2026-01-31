@@ -86,6 +86,17 @@ export interface ReviewAttempt {
   completedAt: string;
 }
 
+export interface QuestionHistoryEntry {
+  id: string;
+  topicId: string;
+  sessionId?: string;
+  correctCount: number;
+  wrongCount: number;
+  blankCount: number;
+  notes?: string;
+  createdAt: string;
+}
+
 export interface Settings {
   pomodoroMinutes: number;
   shortBreakMinutes: number;
@@ -110,6 +121,7 @@ export interface ExportData {
     studySessions: StudySession[];
     reviewSchedules: ReviewSchedule[];
     reviewAttempts: ReviewAttempt[];
+    questionHistory: QuestionHistoryEntry[];
     settings: Settings;
   };
 }

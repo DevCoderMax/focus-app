@@ -27,6 +27,7 @@ export function TimerPage() {
     pauseTimer,
     resetTimer,
     tickTimer,
+    addQuestionHistory,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
@@ -39,6 +40,12 @@ export function TimerPage() {
   const [isFocusActive, setIsFocusActive] = useState(false);
   const [isFocusVisible, setIsFocusVisible] = useState(false);
   const [isFocusAnimating, setIsFocusAnimating] = useState(false);
+  const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [questionCorrect, setQuestionCorrect] = useState('');
+  const [questionWrong, setQuestionWrong] = useState('');
+  const [questionBlank, setQuestionBlank] = useState('');
+  const [questionNotes, setQuestionNotes] = useState('');
+  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     loadAllData();
@@ -128,9 +135,10 @@ export function TimerPage() {
   const handleFinish = async () => {
     if (!canStart || !startedAt) return;
     const endedAt = new Date().toISOString();
+    const sessionId = generateId();
 
     await addStudySession({
-      id: generateId(),
+      id: sessionId,
       topicId,
       activityType,
       startedAt,
@@ -140,6 +148,37 @@ export function TimerPage() {
       difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
     });
 
+    if (activityType !== 'lesson') {
+      setPendingSessionId(sessionId);
+      setShowQuestionModal(true);
+      return;
+    }
+
+    handleReset();
+  };
+
+  const handleSaveQuestionHistory = async () => {
+    const correctCount = Number(questionCorrect) || 0;
+    const wrongCount = Number(questionWrong) || 0;
+    const blankCount = Number(questionBlank) || 0;
+
+    await addQuestionHistory({
+      id: generateId(),
+      topicId,
+      sessionId: pendingSessionId || undefined,
+      correctCount,
+      wrongCount,
+      blankCount,
+      notes: questionNotes || undefined,
+      createdAt: new Date().toISOString(),
+    });
+
+    setQuestionCorrect('');
+    setQuestionWrong('');
+    setQuestionBlank('');
+    setQuestionNotes('');
+    setPendingSessionId(null);
+    setShowQuestionModal(false);
     handleReset();
   };
 
@@ -298,6 +337,72 @@ export function TimerPage() {
           </button>
         </div>
         <p className="text-xs text-gray-600 mt-6">Pressione ESC para sair</p>
+      </div>
+    )}
+    {showQuestionModal && (
+      <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-lg">
+          <div className="mb-4">
+            <h2 className="text-xl font-bold">Registrar questões</h2>
+            <p className="text-sm text-gray-400">
+              Informe o resultado da sessão de questões para acompanhar seu progresso.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Certas</label>
+              <input
+                type="number"
+                min={0}
+                value={questionCorrect}
+                onChange={(event) => setQuestionCorrect(event.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Erradas</label>
+              <input
+                type="number"
+                min={0}
+                value={questionWrong}
+                onChange={(event) => setQuestionWrong(event.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Em branco</label>
+              <input
+                type="number"
+                min={0}
+                value={questionBlank}
+                onChange={(event) => setQuestionBlank(event.target.value)}
+                className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+              />
+            </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-300 mb-2">Observações</label>
+            <textarea
+              value={questionNotes}
+              onChange={(event) => setQuestionNotes(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white min-h-[96px]"
+              placeholder="Ex: dificuldade em interpretação de enunciados..."
+            />
+          </div>
+          <div className="flex justify-end gap-3 mt-6">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowQuestionModal(false);
+                setPendingSessionId(null);
+                handleReset();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveQuestionHistory}>Salvar</Button>
+          </div>
+        </div>
       </div>
     )}
     </>

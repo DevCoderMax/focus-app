@@ -2,10 +2,26 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
 import { formatDuration, formatDate } from '@/utils/helpers';
 import { Clock, Target, TrendingUp, Calendar } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  Tooltip,
+} from 'recharts';
 
 export function DashboardPage() {
-  const { studySessions, topics, subjects, reviewAttempts, loadAllData } = useStore();
+  const {
+    studySessions,
+    topics,
+    subjects,
+    reviewAttempts,
+    questionHistory,
+    loadAllData,
+  } = useStore();
   const [chartRangeDays, setChartRangeDays] = useState(7);
 
   useEffect(() => {
@@ -61,7 +77,7 @@ export function DashboardPage() {
     };
   }, [studySessions, reviewAttempts]);
 
-  // Chart data - last N days
+  // Chart data - last N days (study sessions)
   const chartData = useMemo(() => {
     const days = [];
     const today = new Date();
@@ -94,6 +110,43 @@ export function DashboardPage() {
     
     return days;
   }, [studySessions, chartRangeDays]);
+
+  // Question performance chart data
+  const questionChartData = useMemo(() => {
+    const days = [];
+    const today = new Date();
+
+    for (let i = chartRangeDays - 1; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
+
+      const nextDay = new Date(date);
+      nextDay.setDate(nextDay.getDate() + 1);
+
+      const entries = questionHistory.filter((entry) => {
+        const entryDate = new Date(entry.createdAt);
+        return entryDate >= date && entryDate < nextDay;
+      });
+
+      const correct = entries.reduce((sum, e) => sum + e.correctCount, 0);
+      const wrong = entries.reduce((sum, e) => sum + e.wrongCount, 0);
+      const blank = entries.reduce((sum, e) => sum + e.blankCount, 0);
+      const total = correct + wrong + blank;
+      const rendimento = total === 0 ? 0 : Math.round((correct / total) * 100);
+
+      days.push({
+        name:
+          chartRangeDays <= 7
+            ? date.toLocaleDateString('pt-BR', { weekday: 'short' })
+            : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        total,
+        rendimento,
+      });
+    }
+
+    return days;
+  }, [questionHistory, chartRangeDays]);
 
   // Top 3 worst performing topics
   const worstTopics = useMemo(() => {
@@ -166,7 +219,7 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Chart */}
+      {/* Charts */}
       <div className="bg-gray-900 rounded-lg p-6 mb-8 border border-gray-800">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold">Histórico</h2>
@@ -185,22 +238,68 @@ export function DashboardPage() {
             </select>
           </div>
         </div>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData}>
-              <XAxis
-                dataKey="name"
-                stroke="#737373"
-                style={{ fontSize: '12px' }}
-              />
-              <YAxis
-                stroke="#737373"
-                style={{ fontSize: '12px' }}
-                label={{ value: 'Minutos', angle: -90, position: 'insideLeft', style: { fill: '#737373' } }}
-              />
-              <Bar dataKey="minutes" fill="#FFFFFF" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <div className="space-y-6">
+          <div className="h-64">
+            <h3 className="text-sm text-gray-400 mb-2">Tempo de estudo (min)</h3>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <XAxis dataKey="name" stroke="#737373" style={{ fontSize: '12px' }} />
+                <YAxis
+                  stroke="#737373"
+                  style={{ fontSize: '12px' }}
+                  label={{
+                    value: 'Minutos',
+                    angle: -90,
+                    position: 'insideLeft',
+                    style: { fill: '#737373' },
+                  }}
+                />
+                <Bar dataKey="minutes" fill="#FFFFFF" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="h-64">
+            <h3 className="text-sm text-gray-400 mb-2">Questões: volume e rendimento</h3>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={questionChartData}>
+                <XAxis dataKey="name" stroke="#737373" style={{ fontSize: '12px' }} />
+                <YAxis
+                  yAxisId="left"
+                  stroke="#737373"
+                  style={{ fontSize: '12px' }}
+                  label={{
+                    value: 'Total',
+                    angle: -90,
+                    position: 'insideLeft',
+                    style: { fill: '#737373' },
+                  }}
+                />
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  stroke="#737373"
+                  style={{ fontSize: '12px' }}
+                  domain={[0, 100]}
+                  label={{
+                    value: '%',
+                    angle: -90,
+                    position: 'insideRight',
+                    style: { fill: '#737373' },
+                  }}
+                />
+                <Tooltip
+                  contentStyle={{ background: '#0b0b0b', border: '1px solid #222' }}
+                  formatter={(value: number, name: string) =>
+                    name === 'rendimento'
+                      ? [`${value}%`, 'Rendimento']
+                      : [value, 'Total']
+                  }
+                />
+                <Bar yAxisId="left" dataKey="total" fill="#FFFFFF" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="rendimento" stroke="#10B981" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 

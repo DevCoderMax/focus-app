@@ -5,6 +5,7 @@ import type {
   Question,
   StudySession,
   Settings,
+  QuestionHistoryEntry,
 } from '@/types';
 import { generateId } from '@/utils/helpers';
 
@@ -198,5 +199,6 @@ Onde:
     notes,
     questions,
     studySessions,
+    questionHistory: [] as QuestionHistoryEntry[],
   };
 }

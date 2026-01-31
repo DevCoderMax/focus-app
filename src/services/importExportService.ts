@@ -55,11 +55,14 @@ const QuestionSchema = z.union([MCQQuestionSchema, OpenQuestionSchema]);
 const StudySessionSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  activityType: z.enum(['lesson', 'questions', 'lesson_questions']),
   startedAt: z.string(),
   endedAt: z.string(),
   durationSec: z.number(),
   mode: z.enum(['pomodoro', 'free', 'countdown']),
-  difficulty: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]),
+  difficulty: z
+    .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
+    .optional(),
 });
 
 const ReviewScheduleSchema = z.object({
@@ -79,6 +82,17 @@ const ReviewAttemptSchema = z.object({
   accuracy: z.number(),
   durationSec: z.number(),
   completedAt: z.string(),
+});
+
+const QuestionHistorySchema = z.object({
+  id: z.string(),
+  topicId: z.string(),
+  sessionId: z.string().optional(),
+  correctCount: z.number(),
+  wrongCount: z.number(),
+  blankCount: z.number(),
+  notes: z.string().optional(),
+  createdAt: z.string(),
 });
 
 const SettingsSchema = z.object({
@@ -104,6 +118,7 @@ const ExportDataSchema = z.object({
     studySessions: z.array(StudySessionSchema),
     reviewSchedules: z.array(ReviewScheduleSchema),
     reviewAttempts: z.array(ReviewAttemptSchema),
+    questionHistory: z.array(QuestionHistorySchema),
     settings: SettingsSchema,
   }),
 });
@@ -120,6 +135,7 @@ export async function exportData(): Promise<ExportData> {
     studySessions,
     reviewSchedules,
     reviewAttempts,
+    questionHistory,
     settings,
   ] = await Promise.all([
     storage.getAll('subjects'),
@@ -129,6 +145,7 @@ export async function exportData(): Promise<ExportData> {
     storage.getAll('studySessions'),
     storage.getAll('reviewSchedules'),
     storage.getAll('reviewAttempts'),
+    storage.getAll('questionHistory'),
     storage.getSettings(),
   ]);
 
@@ -146,6 +163,7 @@ export async function exportData(): Promise<ExportData> {
       studySessions,
       reviewSchedules,
       reviewAttempts,
+      questionHistory,
       settings,
     },
   };
@@ -205,6 +223,7 @@ export async function importDataReplace(data: ExportData): Promise<void> {
     ...data.data.studySessions.map((item) => storage.add('studySessions', item)),
     ...data.data.reviewSchedules.map((item) => storage.add('reviewSchedules', item)),
     ...data.data.reviewAttempts.map((item) => storage.add('reviewAttempts', item)),
+    ...data.data.questionHistory.map((item) => storage.add('questionHistory', item)),
   ]);
 
   await storage.updateSettings(data.data.settings);
@@ -223,6 +242,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     existingSessions,
     existingSchedules,
     existingAttempts,
+    existingHistory,
   ] = await Promise.all([
     storage.getAll('subjects'),
     storage.getAll('topics'),
@@ -231,6 +251,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     storage.getAll('studySessions'),
     storage.getAll('reviewSchedules'),
     storage.getAll('reviewAttempts'),
+    storage.getAll('questionHistory'),
   ]);
 
   // Helper to merge items
@@ -263,6 +284,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     mergeItems('studySessions', data.data.studySessions as any, existingSessions),
     mergeItems('reviewSchedules', data.data.reviewSchedules as any, existingSchedules),
     mergeItems('reviewAttempts', data.data.reviewAttempts as any, existingAttempts),
+    mergeItems('questionHistory', data.data.questionHistory as any, existingHistory),
   ]);
 
   // Merge settings (always use imported if they exist)
@@ -282,6 +304,7 @@ export function getImportSummary(data: ExportData): {
   studySessions: number;
   reviewSchedules: number;
   reviewAttempts: number;
+  questionHistory: number;
 } {
   return {
     subjects: data.data.subjects.length,
@@ -291,5 +314,6 @@ export function getImportSummary(data: ExportData): {
     studySessions: data.data.studySessions.length,
     reviewSchedules: data.data.reviewSchedules.length,
     reviewAttempts: data.data.reviewAttempts.length,
+    questionHistory: data.data.questionHistory.length,
   };
 }

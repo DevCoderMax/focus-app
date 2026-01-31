@@ -7,6 +7,7 @@ import type {
   StudySession,
   ReviewSchedule,
   ReviewAttempt,
+  QuestionHistoryEntry,
   Settings,
 } from '@/types';
 import * as storage from '@/data/storage';
@@ -20,6 +21,7 @@ interface AppState {
   studySessions: StudySession[];
   reviewSchedules: ReviewSchedule[];
   reviewAttempts: ReviewAttempt[];
+  questionHistory: QuestionHistoryEntry[];
   settings: Settings | null;
 
   // Timer
@@ -64,6 +66,10 @@ interface AppState {
   
   // Review Attempts
   addReviewAttempt: (attempt: ReviewAttempt) => Promise<void>;
+
+  // Question History
+  addQuestionHistory: (entry: QuestionHistoryEntry) => Promise<void>;
+  deleteQuestionHistory: (id: string) => Promise<void>;
   
   // Settings
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
@@ -87,6 +93,7 @@ export const useStore = create<AppState>((set, get) => ({
   studySessions: [],
   reviewSchedules: [],
   reviewAttempts: [],
+  questionHistory: [],
   settings: null,
   timerSeconds: 0,
   timerIsRunning: false,
@@ -109,6 +116,7 @@ export const useStore = create<AppState>((set, get) => ({
         studySessions,
         reviewSchedules,
         reviewAttempts,
+        questionHistory,
         settings,
       ] = await Promise.all([
         storage.getAll('subjects'),
@@ -118,6 +126,7 @@ export const useStore = create<AppState>((set, get) => ({
         storage.getAll('studySessions'),
         storage.getAll('reviewSchedules'),
         storage.getAll('reviewAttempts'),
+        storage.getAll('questionHistory'),
         storage.getSettings(),
       ]);
 
@@ -129,6 +138,7 @@ export const useStore = create<AppState>((set, get) => ({
         studySessions,
         reviewSchedules,
         reviewAttempts,
+        questionHistory,
         settings,
         isLoading: false,
       });
@@ -257,6 +267,16 @@ export const useStore = create<AppState>((set, get) => ({
   addReviewAttempt: async (attempt) => {
     await storage.add('reviewAttempts', attempt);
     set({ reviewAttempts: [...get().reviewAttempts, attempt] });
+  },
+
+  // Question History
+  addQuestionHistory: async (entry) => {
+    await storage.add('questionHistory', entry);
+    set({ questionHistory: [...get().questionHistory, entry] });
+  },
+  deleteQuestionHistory: async (id) => {
+    await storage.remove('questionHistory', id);
+    set({ questionHistory: get().questionHistory.filter((item) => item.id !== id) });
   },
 
   // Settings

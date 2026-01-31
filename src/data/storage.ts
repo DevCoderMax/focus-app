@@ -8,10 +8,11 @@ import type {
   ReviewSchedule,
   ReviewAttempt,
   Settings,
+  QuestionHistoryEntry,
 } from '@/types';
 
 const DB_NAME = 'focus-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface FocusDB {
   subjects: { key: string; value: Subject };
@@ -21,6 +22,7 @@ export interface FocusDB {
   studySessions: { key: string; value: StudySession };
   reviewSchedules: { key: string; value: ReviewSchedule };
   reviewAttempts: { key: string; value: ReviewAttempt };
+  questionHistory: { key: string; value: QuestionHistoryEntry };
   settings: { key: string; value: Settings };
 }
 
@@ -59,6 +61,10 @@ export async function initDB(): Promise<IDBPDatabase<FocusDB>> {
       if (!db.objectStoreNames.contains('reviewAttempts')) {
         const attemptStore = db.createObjectStore('reviewAttempts', { keyPath: 'id' });
         attemptStore.createIndex('scheduleId', 'scheduleId');
+      }
+      if (!db.objectStoreNames.contains('questionHistory')) {
+        const historyStore = db.createObjectStore('questionHistory', { keyPath: 'id' });
+        historyStore.createIndex('topicId', 'topicId');
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'id' });
@@ -129,6 +135,7 @@ export async function clearAll(): Promise<void> {
     'studySessions',
     'reviewSchedules',
     'reviewAttempts',
+    'questionHistory',
   ];
 
   const tx = db.transaction(stores, 'readwrite');
