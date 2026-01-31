@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { Layout } from '@/components/Layout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { SubjectsPage } from '@/pages/Subjects';
@@ -6,20 +7,69 @@ import { SettingsPage } from '@/pages/Settings';
 import { NotesPage, QuestionsPage, ReviewsPage } from '@/pages/Placeholder';
 import { SessionsPage } from '@/pages/Sessions';
 import { TimerPage } from '@/pages/Timer';
+import { ProfilesPage } from '@/pages/Profiles';
+import { useStore } from '@/store';
 
 function App() {
+  const { activeProfileId, loadProfiles } = useStore();
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
+
   return (
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/subjects" element={<SubjectsPage />} />
-          <Route path="/notes" element={<NotesPage />} />
-          <Route path="/questions" element={<QuestionsPage />} />
-          <Route path="/reviews" element={<ReviewsPage />} />
-          <Route path="/study" element={<SessionsPage />} />
-          <Route path="/timer" element={<TimerPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/profiles" element={<ProfilesPage />} />
+          <Route
+            path="/"
+            element={
+              activeProfileId ? <DashboardPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/subjects"
+            element={
+              activeProfileId ? <SubjectsPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/notes"
+            element={
+              activeProfileId ? <NotesPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/questions"
+            element={
+              activeProfileId ? <QuestionsPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/reviews"
+            element={
+              activeProfileId ? <ReviewsPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/study"
+            element={
+              activeProfileId ? <SessionsPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/timer"
+            element={
+              activeProfileId ? <TimerPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              activeProfileId ? <SettingsPage /> : <Navigate to="/profiles" replace />
+            }
+          />
         </Routes>
       </Layout>
     </BrowserRouter>

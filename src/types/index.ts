@@ -6,6 +6,14 @@ export interface Subject {
   updatedAt: string;
 }
 
+export interface Profile {
+  id: string;
+  name: string;
+  avatar?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Topic {
   id: string;
   subjectId: string;

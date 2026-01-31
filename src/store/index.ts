@@ -9,8 +9,10 @@ import type {
   ReviewAttempt,
   QuestionHistoryEntry,
   Settings,
+  Profile,
 } from '@/types';
 import * as storage from '@/data/storage';
+import * as profileService from '@/services/profileService';
 
 interface AppState {
   // Data
@@ -23,6 +25,8 @@ interface AppState {
   reviewAttempts: ReviewAttempt[];
   questionHistory: QuestionHistoryEntry[];
   settings: Settings | null;
+  profiles: Profile[];
+  activeProfileId: string | null;
 
   // Timer
   timerSeconds: number;
@@ -74,6 +78,13 @@ interface AppState {
   // Settings
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
 
+  // Profiles
+  loadProfiles: () => void;
+  setActiveProfile: (profileId: string) => void;
+  createProfile: (name: string) => void;
+  updateProfile: (profile: Profile) => void;
+  deleteProfile: (profileId: string) => void;
+
   // Timer actions
   startTimer: () => void;
   pauseTimer: () => void;
@@ -95,6 +106,8 @@ export const useStore = create<AppState>((set, get) => ({
   reviewAttempts: [],
   questionHistory: [],
   settings: null,
+  profiles: [],
+  activeProfileId: null,
   timerSeconds: 0,
   timerIsRunning: false,
   timerStartedAt: null,
@@ -308,5 +321,52 @@ export const useStore = create<AppState>((set, get) => ({
   // Refresh all data
   refreshData: async () => {
     await get().loadAllData();
+  },
+
+  // Profiles
+  loadProfiles: () => {
+    const profiles = profileService.getProfiles();
+    const activeProfileId = profileService.getActiveProfileId();
+    set({ profiles, activeProfileId });
+  },
+  setActiveProfile: (profileId) => {
+    profileService.setActiveProfileId(profileId);
+    storage.setActiveProfile(profileId);
+    set({ activeProfileId: profileId });
+    get().refreshData();
+  },
+  createProfile: (name) => {
+    const profiles = profileService.getProfiles();
+    const newProfile = profileService.createProfile(name);
+    const updated = [...profiles, newProfile];
+    profileService.saveProfiles(updated);
+    profileService.setActiveProfileId(newProfile.id);
+    storage.setActiveProfile(newProfile.id);
+    set({ profiles: updated, activeProfileId: newProfile.id });
+    get().refreshData();
+  },
+  updateProfile: (profile) => {
+    const profiles = profileService.getProfiles();
+    const updatedProfile = profileService.updateProfile(profile);
+    const updated = profiles.map((p) => (p.id === profile.id ? updatedProfile : p));
+    profileService.saveProfiles(updated);
+    set({ profiles: updated });
+  },
+  deleteProfile: (profileId) => {
+    const profiles = profileService.getProfiles().filter((p) => p.id !== profileId);
+    profileService.saveProfiles(profiles);
+    const activeProfileId = profileService.getActiveProfileId();
+    if (activeProfileId === profileId) {
+      const nextProfile = profiles[0] || null;
+      if (nextProfile) {
+        profileService.setActiveProfileId(nextProfile.id);
+        storage.setActiveProfile(nextProfile.id);
+      } else {
+        profileService.setActiveProfileId('');
+      }
+      set({ activeProfileId: nextProfile?.id || null });
+      get().refreshData();
+    }
+    set({ profiles });
   },
 }));

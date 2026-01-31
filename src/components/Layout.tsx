@@ -40,7 +40,16 @@ type MobileNavItem =
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const { timerSeconds, timerIsRunning, startTimer, pauseTimer } = useStore();
+  const {
+    timerSeconds,
+    timerIsRunning,
+    startTimer,
+    pauseTimer,
+    profiles,
+    activeProfileId,
+    loadProfiles,
+    setActiveProfile,
+  } = useStore();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -58,6 +67,10 @@ export function Layout({ children }: LayoutProps) {
   useEffect(() => {
     setIsMoreOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    loadProfiles();
+  }, [loadProfiles]);
 
   useEffect(() => {
     if (!timerIsRunning) return;
@@ -183,6 +196,32 @@ export function Layout({ children }: LayoutProps) {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto pb-mobile-nav md:pb-0">
+        <div className="sticky top-0 z-40 bg-true-black border-b border-gray-800">
+          <div className="flex items-center justify-between px-6 py-4">
+            <div className="text-sm text-gray-400">FOCUS</div>
+            <div className="flex items-center gap-2">
+              {profiles.length > 0 && (
+                <select
+                  value={activeProfileId || ''}
+                  onChange={(event) => setActiveProfile(event.target.value)}
+                  className="px-3 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+                >
+                  <option value="" disabled>
+                    Selecionar perfil
+                  </option>
+                  {profiles.map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.avatar ? `${profile.avatar} ` : ''}{profile.name}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <Link to="/profiles" className="text-xs text-gray-400 hover:text-true-white">
+                Gerenciar perfis
+              </Link>
+            </div>
+          </div>
+        </div>
         {children}
       </main>
 

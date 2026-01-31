@@ -12,6 +12,7 @@ import type {
 } from '@/types';
 
 const DB_NAME = 'focus-db';
+const PROFILE_KEY = 'focus.activeProfile';
 const DB_VERSION = 2;
 
 export interface FocusDB {
@@ -27,11 +28,27 @@ export interface FocusDB {
 }
 
 let dbInstance: IDBPDatabase<FocusDB> | null = null;
+let dbProfileId: string | null = null;
+
+function getProfileId(): string {
+  return window.localStorage.getItem(PROFILE_KEY) || 'default';
+}
+
+function getProfileDbName(profileId: string): string {
+  return `${DB_NAME}-${profileId}`;
+}
+
+export function setActiveProfile(profileId: string): void {
+  window.localStorage.setItem(PROFILE_KEY, profileId);
+  dbInstance = null;
+  dbProfileId = null;
+}
 
 export async function initDB(): Promise<IDBPDatabase<FocusDB>> {
-  if (dbInstance) return dbInstance;
+  const profileId = getProfileId();
+  if (dbInstance && dbProfileId === profileId) return dbInstance;
 
-  dbInstance = await openDB<FocusDB>(DB_NAME, DB_VERSION, {
+  dbInstance = await openDB<FocusDB>(getProfileDbName(profileId), DB_VERSION, {
     upgrade(db) {
       // Create object stores
       if (!db.objectStoreNames.contains('subjects')) {
@@ -71,6 +88,8 @@ export async function initDB(): Promise<IDBPDatabase<FocusDB>> {
       }
     },
   });
+
+  dbProfileId = profileId;
 
   return dbInstance;
 }
