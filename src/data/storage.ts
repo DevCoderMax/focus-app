@@ -38,6 +38,53 @@ function getProfileDbName(profileId: string): string {
   return `${DB_NAME}-${profileId}`;
 }
 
+export async function getAllFromProfile<T extends keyof FocusDB>(
+  profileId: string,
+  storeName: T
+): Promise<FocusDB[T]['value'][]> {
+  const db = await openDB<FocusDB>(getProfileDbName(profileId), DB_VERSION, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains('subjects')) {
+        db.createObjectStore('subjects', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('topics')) {
+        const topicStore = db.createObjectStore('topics', { keyPath: 'id' });
+        topicStore.createIndex('subjectId', 'subjectId');
+      }
+      if (!db.objectStoreNames.contains('notes')) {
+        const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
+        noteStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('questions')) {
+        const questionStore = db.createObjectStore('questions', { keyPath: 'id' });
+        questionStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('studySessions')) {
+        const sessionStore = db.createObjectStore('studySessions', { keyPath: 'id' });
+        sessionStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('reviewSchedules')) {
+        const scheduleStore = db.createObjectStore('reviewSchedules', { keyPath: 'id' });
+        scheduleStore.createIndex('topicId', 'topicId');
+        scheduleStore.createIndex('status', 'status');
+      }
+      if (!db.objectStoreNames.contains('reviewAttempts')) {
+        const attemptStore = db.createObjectStore('reviewAttempts', { keyPath: 'id' });
+        attemptStore.createIndex('scheduleId', 'scheduleId');
+      }
+      if (!db.objectStoreNames.contains('questionHistory')) {
+        const historyStore = db.createObjectStore('questionHistory', { keyPath: 'id' });
+        historyStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'id' });
+      }
+    },
+  });
+
+  return db.getAll(storeName);
+}
+
 export function setActiveProfile(profileId: string): void {
   window.localStorage.setItem(PROFILE_KEY, profileId);
   dbInstance = null;
