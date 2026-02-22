@@ -19,6 +19,7 @@ import {
   AlignCenter,
   AlignRight,
   AlignJustify,
+  Trash2,
 } from 'lucide-react';
 
 export function NotesPage() {
@@ -463,6 +464,7 @@ export function QuestionsPage() {
     subjects,
     topics,
     addQuestionHistory,
+    deleteQuestionHistory,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
@@ -568,6 +570,12 @@ export function QuestionsPage() {
     setManualBlank('');
     setManualNotes('');
     setManualTopicId('');
+  };
+
+  const handleDeleteEntry = async (id: string) => {
+    if (confirm('Tem certeza que deseja excluir este registro?')) {
+      await deleteQuestionHistory(id);
+    }
   };
 
   return (
@@ -759,7 +767,7 @@ export function QuestionsPage() {
                   key={entry.id}
                   className="flex flex-col md:flex-row md:items-center md:justify-between p-4 bg-gray-800 rounded-lg"
                 >
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium">{topic?.name || 'Tema não encontrado'}</p>
                     <p className="text-sm text-gray-400">{subject?.name || 'Matéria não encontrada'}</p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -769,9 +777,18 @@ export function QuestionsPage() {
                       <p className="text-xs text-gray-400 mt-2">{entry.notes}</p>
                     )}
                   </div>
-                  <div className="mt-3 md:mt-0 text-right">
-                    <p className="text-2xl font-bold">{rendimento}%</p>
-                    <p className="text-xs text-gray-400">Rendimento</p>
+                  <div className="mt-3 md:mt-0 flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-2xl font-bold">{rendimento}%</p>
+                      <p className="text-xs text-gray-400">Rendimento</p>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteEntry(entry.id)}
+                      className="p-2 text-gray-400 hover:text-red-400 hover:bg-gray-700 rounded-lg transition-colors"
+                      title="Excluir registro"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 </div>
               );

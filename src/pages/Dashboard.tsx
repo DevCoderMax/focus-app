@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
-import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain, Trash2 } from 'lucide-react';
+import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -59,7 +59,6 @@ export function DashboardPage() {
     reviewAttempts,
     questionHistory,
     loadAllData,
-    clearQuestionHistory,
   } = useStore();
   const [chartRangeDays, setChartRangeDays] = useState(7);
   const [showDetailedMetrics, setShowDetailedMetrics] = useState(false);
@@ -480,20 +479,6 @@ export function DashboardPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
           <h2 className="text-xl font-bold">Histórico</h2>
           <div className="flex items-center gap-3">
-            {questionHistory.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Tem certeza que deseja apagar todo o histórico de questões? Esta ação não pode ser desfeita.')) {
-                    clearQuestionHistory();
-                  }
-                }}
-                className="flex items-center gap-2 px-3 py-2 bg-red-900/30 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors text-sm"
-              >
-                <Trash2 size={16} />
-                Apagar histórico
-              </button>
-            )}
             <label className="text-sm text-gray-400">Período</label>
             <select
               value={chartRangeDays}

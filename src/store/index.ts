@@ -74,7 +74,6 @@ interface AppState {
   // Question History
   addQuestionHistory: (entry: QuestionHistoryEntry) => Promise<void>;
   deleteQuestionHistory: (id: string) => Promise<void>;
-  clearQuestionHistory: () => Promise<void>;
   
   // Settings
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
@@ -291,13 +290,6 @@ export const useStore = create<AppState>((set, get) => ({
   deleteQuestionHistory: async (id) => {
     await storage.remove('questionHistory', id);
     set({ questionHistory: get().questionHistory.filter((item) => item.id !== id) });
-  },
-  clearQuestionHistory: async () => {
-    const db = await storage.initDB();
-    const tx = db.transaction('questionHistory', 'readwrite');
-    await tx.objectStore('questionHistory').clear();
-    await tx.done;
-    set({ questionHistory: [] });
   },
 
   // Settings
