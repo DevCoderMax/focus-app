@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
-import { formatDuration, formatDate } from '@/utils/helpers';
-import { Clock, Target, TrendingUp, Calendar } from 'lucide-react';
+import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -12,6 +11,45 @@ import {
   Line,
   Tooltip,
 } from 'recharts';
+import type { TopicMetrics } from '@/types';
+
+// Calculate confidence index: weighted by volume
+// forca = percentual_acerto * (total_questoes / 10)
+function calculateConfidenceIndex(accuracyPercent: number, totalQuestions: number): number {
+  if (totalQuestions === 0) return 0;
+  return Math.round(accuracyPercent * (totalQuestions / 10));
+}
+
+// Determine topic strength classification
+function getTopicStrength(accuracyPercent: number, totalQuestions: number): TopicMetrics['strength'] {
+  if (totalQuestions < 10) return 'little_trained';
+  if (accuracyPercent > 80 && totalQuestions > 30) return 'strong';
+  if (accuracyPercent >= 60 && accuracyPercent <= 80) return 'intermediate';
+  return 'weak';
+}
+
+// Determine if it's a consolidated weakness
+function isConsolidatedWeakness(totalQuestions: number, accuracyPercent: number): boolean {
+  return totalQuestions >= 20 && accuracyPercent < 70;
+}
+
+// Determine if topic is little trained
+function isLittleTrained(totalQuestions: number): boolean {
+  return totalQuestions < 10;
+}
+
+// Check if has improvement potential (60-75% zone)
+function hasImprovementPotential(accuracyPercent: number): boolean {
+  return accuracyPercent >= 60 && accuracyPercent <= 75;
+}
+
+// Determine trend direction
+function getTrendDirection(recentAccuracy: number, previousAccuracy: number): TopicMetrics['trend'] {
+  const diff = recentAccuracy - previousAccuracy;
+  if (diff > 5) return 'rising';
+  if (diff < -5) return 'falling';
+  return 'stable';
+}
 
 export function DashboardPage() {
   const {
@@ -23,6 +61,7 @@ export function DashboardPage() {
     loadAllData,
   } = useStore();
   const [chartRangeDays, setChartRangeDays] = useState(7);
+  const [showDetailedMetrics, setShowDetailedMetrics] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -76,6 +115,122 @@ export function DashboardPage() {
       avgAccuracy,
     };
   }, [studySessions, reviewAttempts]);
+
+  // Calculate comprehensive topic metrics
+  const topicMetrics = useMemo((): TopicMetrics[] => {
+    const metricsMap = new Map<string, TopicMetrics>();
+    
+    // Initialize metrics for each topic
+    topics.forEach((topic) => {
+      const subject = subjects.find((s) => s.id === topic.subjectId);
+      metricsMap.set(topic.id, {
+        topicId: topic.id,
+        topicName: topic.name,
+        subjectId: topic.subjectId,
+        subjectName: subject?.name || 'Unknown',
+        totalQuestions: 0,
+        correctCount: 0,
+        wrongCount: 0,
+        blankCount: 0,
+        accuracyPercent: 0,
+        confidenceIndex: 0,
+        isWeakness: false,
+        isLittleTrained: true,
+        strength: 'little_trained',
+        recentAccuracy: 0,
+        previousAccuracy: 0,
+        trend: 'stable',
+        improvementPotential: false,
+      });
+    });
+    
+    // Aggregate question history by topic
+    questionHistory.forEach((entry) => {
+      const metrics = metricsMap.get(entry.topicId);
+      if (!metrics) return;
+      
+      metrics.totalQuestions += entry.correctCount + entry.wrongCount + entry.blankCount;
+      metrics.correctCount += entry.correctCount;
+      metrics.wrongCount += entry.wrongCount;
+      metrics.blankCount += entry.blankCount;
+    });
+    
+    // Calculate derived metrics
+    metricsMap.forEach((metrics) => {
+      // Accuracy percentage
+      const answered = metrics.correctCount + metrics.wrongCount;
+      metrics.accuracyPercent = answered > 0 
+        ? Math.round((metrics.correctCount / answered) * 100) 
+        : 0;
+      
+      // Confidence index
+      metrics.confidenceIndex = calculateConfidenceIndex(metrics.accuracyPercent, metrics.totalQuestions);
+      
+      // Weakness detection
+      metrics.isWeakness = isConsolidatedWeakness(metrics.totalQuestions, metrics.accuracyPercent);
+      metrics.isLittleTrained = isLittleTrained(metrics.totalQuestions);
+      
+      // Strength classification
+      metrics.strength = getTopicStrength(metrics.accuracyPercent, metrics.totalQuestions);
+      
+      // Improvement potential
+      metrics.improvementPotential = hasImprovementPotential(metrics.accuracyPercent);
+    });
+    
+    // Calculate trend (needs chronological order)
+    const sortedHistory = [...questionHistory].sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    
+    const topicHistoryMap = new Map<string, { correct: number; total: number }[]>();
+    sortedHistory.forEach((entry) => {
+      const topicHistory = topicHistoryMap.get(entry.topicId) || [];
+      const answered = entry.correctCount + entry.wrongCount;
+      topicHistory.push({ correct: entry.correctCount, total: answered });
+      topicHistoryMap.set(entry.topicId, topicHistory);
+    });
+    
+    topicHistoryMap.forEach((history, topicId) => {
+      const metrics = metricsMap.get(topicId);
+      if (!metrics || history.length === 0) return;
+      
+      const recent20 = history.slice(-20);
+      const previous = history.slice(0, -20);
+      
+      const recentCorrect = recent20.reduce((sum, h) => sum + h.correct, 0);
+      const recentTotal = recent20.reduce((sum, h) => sum + h.total, 0);
+      metrics.recentAccuracy = recentTotal > 0 ? Math.round((recentCorrect / recentTotal) * 100) : 0;
+      
+      const previousCorrect = previous.reduce((sum, h) => sum + h.correct, 0);
+      const previousTotal = previous.reduce((sum, h) => sum + h.total, 0);
+      metrics.previousAccuracy = previousTotal > 0 ? Math.round((previousCorrect / previousTotal) * 100) : 0;
+      
+      metrics.trend = getTrendDirection(metrics.recentAccuracy, metrics.previousAccuracy);
+    });
+    
+    return Array.from(metricsMap.values()).filter(m => m.totalQuestions > 0);
+  }, [topics, subjects, questionHistory]);
+
+  // Sorted topics by different criteria
+  const weakTopics = useMemo(() => 
+    topicMetrics.filter(m => m.strength === 'weak' || m.isWeakness).sort((a, b) => a.accuracyPercent - b.accuracyPercent),
+    [topicMetrics]
+  );
+
+  const strongTopics = useMemo(() => 
+    topicMetrics.filter(m => m.strength === 'strong').sort((a, b) => b.confidenceIndex - a.confidenceIndex),
+    [topicMetrics]
+  );
+
+  const improvementTopics = useMemo(() => 
+    topicMetrics.filter(m => m.improvementPotential).sort((a, b) => b.confidenceIndex - a.confidenceIndex),
+    [topicMetrics]
+  );
+
+  const risingTopics = useMemo(() => 
+    topicMetrics.filter(m => m.trend === 'rising').sort((a, b) => b.recentAccuracy - a.recentAccuracy),
+    [topicMetrics]
+  );
 
   // Chart data - last N days (study sessions)
   const chartData = useMemo(() => {
@@ -148,7 +303,7 @@ export function DashboardPage() {
     return days;
   }, [questionHistory, chartRangeDays]);
 
-  // Top 3 worst performing topics
+  // Top 3 worst performing topics (legacy)
   const worstTopics = useMemo(() => {
     const topicAccuracy = new Map<string, { total: number; count: number }>();
     
@@ -182,6 +337,106 @@ export function DashboardPage() {
       .sort((a, b) => a.accuracy - b.accuracy)
       .slice(0, 3);
   }, [reviewAttempts, topics, subjects]);
+
+  // Get strength badge color
+  const getStrengthBadge = (strength: TopicMetrics['strength']) => {
+    switch (strength) {
+      case 'strong':
+        return { bg: 'bg-green-900/30', text: 'text-green-400', icon: <Zap className="w-3 h-3" /> };
+      case 'intermediate':
+        return { bg: 'bg-yellow-900/30', text: 'text-yellow-400', icon: <Brain className="w-3 h-3" /> };
+      case 'weak':
+        return { bg: 'bg-red-900/30', text: 'text-red-400', icon: <AlertTriangle className="w-3 h-3" /> };
+      case 'little_trained':
+        return { bg: 'bg-gray-700/30', text: 'text-gray-400', icon: <Minus className="w-3 h-3" /> };
+    }
+  };
+
+  // Get trend icon
+  const getTrendIcon = (trend: TopicMetrics['trend']) => {
+    switch (trend) {
+      case 'rising':
+        return <TrendingUp className="w-4 h-4 text-green-400" />;
+      case 'falling':
+        return <TrendingDown className="w-4 h-4 text-red-400" />;
+      default:
+        return <Minus className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  // Single topic row component
+  const TopicRow = ({ metrics }: { metrics: TopicMetrics }) => {
+    const badge = getStrengthBadge(metrics.strength);
+    
+    return (
+      <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="font-medium truncate">{metrics.topicName}</p>
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${badge.bg} ${badge.text}`}>
+              {badge.icon}
+              {metrics.strength === 'strong' && 'Forte'}
+              {metrics.strength === 'intermediate' && 'Intermediário'}
+              {metrics.strength === 'weak' && 'Fraco'}
+              {metrics.strength === 'little_trained' && 'Pouco treinado'}
+            </span>
+            {metrics.isWeakness && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-900/30 text-red-400">
+                <AlertTriangle className="w-3 h-3" />
+                Fraqueza
+              </span>
+            )}
+            {metrics.improvementPotential && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-900/30 text-blue-400">
+                <Zap className="w-3 h-3" />
+                Alto potencial
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-400 truncate">{metrics.subjectName}</p>
+        </div>
+        
+        <div className="flex items-center gap-6 ml-4">
+          {/* Basic stats */}
+          <div className="text-center hidden md:block">
+            <p className="text-lg font-bold">{metrics.totalQuestions}</p>
+            <p className="text-xs text-gray-500">Questões</p>
+          </div>
+          
+          <div className="text-center hidden md:block">
+            <p className="text-lg font-bold text-green-400">{metrics.correctCount}</p>
+            <p className="text-xs text-gray-500">Acertos</p>
+          </div>
+          
+          <div className="text-center hidden md:block">
+            <p className="text-lg font-bold text-red-400">{metrics.wrongCount}</p>
+            <p className="text-xs text-gray-500">Erros</p>
+          </div>
+          
+          {/* Main accuracy */}
+          <div className="text-center min-w-[60px]">
+            <div className="flex items-center justify-center gap-1">
+              <p className={`text-2xl font-bold ${
+                metrics.accuracyPercent >= 80 ? 'text-green-400' :
+                metrics.accuracyPercent >= 60 ? 'text-yellow-400' :
+                metrics.accuracyPercent > 0 ? 'text-red-400' : 'text-gray-400'
+              }`}>
+                {metrics.accuracyPercent}%
+              </p>
+              {getTrendIcon(metrics.trend)}
+            </div>
+            <p className="text-xs text-gray-500">Precisão</p>
+          </div>
+          
+          {/* Confidence Index */}
+          <div className="text-center min-w-[60px] hidden lg:block">
+            <p className="text-lg font-bold">{metrics.confidenceIndex}</p>
+            <p className="text-xs text-gray-500">Índice confiança</p>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="p-8">
@@ -324,6 +579,129 @@ export function DashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Detailed Topic Metrics */}
+      {topicMetrics.length > 0 && (
+        <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+            <h2 className="text-xl font-bold">Análise por Tema</h2>
+            <button
+              onClick={() => setShowDetailedMetrics(!showDetailedMetrics)}
+              className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
+            >
+              {showDetailedMetrics ? 'Ver menos' : 'Ver detalhes'}
+            </button>
+          </div>
+
+          {showDetailedMetrics && (
+            <>
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div className="bg-gray-800 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-green-400">{strongTopics.length}</p>
+                  <p className="text-sm text-gray-400">Temas fortes</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-yellow-400">{topicMetrics.filter(m => m.strength === 'intermediate').length}</p>
+                  <p className="text-sm text-gray-400">Intermediários</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-red-400">{weakTopics.length}</p>
+                  <p className="text-sm text-gray-400">Fracos</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-4 text-center">
+                  <p className="text-2xl font-bold text-blue-400">{improvementTopics.length}</p>
+                  <p className="text-sm text-gray-400">Alto potencial</p>
+                </div>
+              </div>
+
+              {/* Topics with improvement potential (best ROI) */}
+              {improvementTopics.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <Zap className="w-5 h-5 text-blue-400" />
+                    Melhor retorno (60-75% de acerto)
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-3">
+                    Nestes temas você tem o maior ganho de pontos com menos esforço
+                  </p>
+                  <div className="space-y-2">
+                    {improvementTopics.map((m) => (
+                      <TopicRow key={m.topicId} metrics={m} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Rising trends */}
+              {risingTopics.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-green-400" />
+                    Em evolução
+                  </h3>
+                  <div className="space-y-2">
+                    {risingTopics.map((m) => (
+                      <TopicRow key={m.topicId} metrics={m} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Weaknesses */}
+              {weakTopics.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                    Fraquezas consolidadas
+                  </h3>
+                  <p className="text-sm text-gray-400 mb-3">
+                    Estes temas têm pelo menos 20 questões feitas e menos de 70% de acerto
+                  </p>
+                  <div className="space-y-2">
+                    {weakTopics.map((m) => (
+                      <TopicRow key={m.topicId} metrics={m} />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* All topics */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Todos os temas</h3>
+                <div className="space-y-2">
+                  {topicMetrics
+                    .sort((a, b) => {
+                      // Sort by weakness first, then by confidence index
+                      if (a.isWeakness && !b.isWeakness) return -1;
+                      if (!a.isWeakness && b.isWeakness) return 1;
+                      return b.confidenceIndex - a.confidenceIndex;
+                    })
+                    .map((m) => (
+                      <TopicRow key={m.topicId} metrics={m} />
+                    ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {!showDetailedMetrics && (
+            <div className="space-y-2">
+              {topicMetrics
+                .sort((a, b) => a.accuracyPercent - b.accuracyPercent)
+                .slice(0, 5)
+                .map((m) => (
+                  <TopicRow key={m.topicId} metrics={m} />
+                ))}
+              {topicMetrics.length > 5 && (
+                <p className="text-center text-gray-400 text-sm py-2">
+                  + {topicMetrics.length - 5} outros temas
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

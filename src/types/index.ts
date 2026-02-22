@@ -148,3 +148,31 @@ export interface TopicPerformance {
   accuracy: number;
   totalReviews: number;
 }
+
+// Topic Metrics for Dashboard
+type TopicStrength = 'strong' | 'intermediate' | 'weak' | 'little_trained';
+type TrendDirection = 'rising' | 'falling' | 'stable';
+
+export interface TopicMetrics {
+  topicId: string;
+  topicName: string;
+  subjectId: string;
+  subjectName: string;
+  // Basic metrics
+  totalQuestions: number;
+  correctCount: number;
+  wrongCount: number;
+  blankCount: number;
+  accuracyPercent: number;
+  // Advanced metrics
+  confidenceIndex: number; // weighted by volume
+  isWeakness: boolean; // consolidated weakness (total >= 20 AND accuracy < 70%)
+  isLittleTrained: boolean; // total < 10
+  strength: TopicStrength;
+  // Trend analysis
+  recentAccuracy: number; // last 20 questions
+  previousAccuracy: number; // before last 20
+  trend: TrendDirection;
+  // Strategic
+  improvementPotential: boolean; // 60-75% zone - best ROI
+}
