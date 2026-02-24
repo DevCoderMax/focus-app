@@ -4,10 +4,8 @@ import type {
   Note,
   Question,
   StudySession,
-  Settings,
   QuestionHistoryEntry,
 } from '@/types';
-import { generateId } from '@/utils/helpers';
 
 export function generateMockData() {
   const now = new Date();

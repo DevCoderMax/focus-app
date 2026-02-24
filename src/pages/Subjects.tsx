@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Plus, BookOpen, Trash2, Edit2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
 import type { Subject, Topic } from '@/types';
 import { getAllFromProfile } from '@/data/storage';
 
 export function SubjectsPage() {
-  const { subjects, topics, addSubject, updateSubject, deleteSubject, addTopic, deleteTopic, loadAllData } = useStore();
+  const { subjects, topics, addSubject, deleteSubject, addTopic, deleteTopic, loadAllData } = useStore();
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isAddingTopic, setIsAddingTopic] = useState<string | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
