@@ -15,6 +15,7 @@ import {
   Play,
   MoreHorizontal,
   Timer as TimerIcon,
+  Rocket,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { formatTime } from '@/utils/helpers';
@@ -28,6 +29,7 @@ const navigation = [
   { name: 'Revisões', href: '/reviews', icon: Calendar },
   { name: 'Sessões', href: '/study', icon: Clock },
   { name: 'Temporizador', href: '/timer', icon: Clock },
+  { name: 'Novidades', href: '/releases', icon: Rocket },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
 
@@ -103,9 +105,8 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-true-black text-true-white flex flex-col md:flex-row">
       {/* Sidebar */}
       <aside
-        className={`hidden md:flex md:sticky md:top-0 h-screen border-r border-gray-800 flex-col transition-all duration-300 ${
-          isCollapsed ? 'w-20' : 'w-64'
-        }`}
+        className={`hidden md:flex md:sticky md:top-0 h-screen border-r border-gray-800 flex-col transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'
+          }`}
       >
         {/* Logo */}
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
@@ -124,7 +125,7 @@ export function Layout({ children }: LayoutProps) {
           {navigation.map((item) => {
             const isActive = location.pathname === item.href;
             const Icon = item.icon;
-            
+
             return (
               <Link
                 key={item.name}
@@ -132,10 +133,9 @@ export function Layout({ children }: LayoutProps) {
                 className={`
                   flex items-center gap-3 px-4 py-3 rounded-lg
                   transition-all duration-200
-                  ${
-                    isActive
-                      ? 'bg-true-white text-true-black'
-                      : 'text-gray-400 hover:text-true-white hover:bg-gray-900'
+                  ${isActive
+                    ? 'bg-true-white text-true-black'
+                    : 'text-gray-400 hover:text-true-white hover:bg-gray-900'
                   }
                 `}
               >
@@ -150,9 +150,8 @@ export function Layout({ children }: LayoutProps) {
           <button
             type="button"
             aria-label={isCollapsed ? 'Expandir menu' : 'Minimizar menu'}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-gray-400 hover:text-true-white hover:bg-gray-900 transition-colors ${
-              isCollapsed ? 'mt-2' : ''
-            }`}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-gray-400 hover:text-true-white hover:bg-gray-900 transition-colors ${isCollapsed ? 'mt-2' : ''
+              }`}
             onClick={() => setIsCollapsed((prev) => !prev)}
           >
             {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
@@ -163,9 +162,8 @@ export function Layout({ children }: LayoutProps) {
         {/* Timer Widget */}
         <div className="px-4 pb-4">
           <div
-            className={`bg-gray-900 border border-gray-800 rounded-lg px-3 py-3 flex ${
-              isCollapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'
-            }`}
+            className={`bg-gray-900 border border-gray-800 rounded-lg px-3 py-3 flex ${isCollapsed ? 'flex-col items-center gap-2' : 'items-center justify-between'
+              }`}
           >
             <div className="text-xs text-gray-400 text-center">
               {!isCollapsed && <span className="block">Temporizador</span>}
@@ -269,11 +267,10 @@ export function Layout({ children }: LayoutProps) {
                     key={item.name}
                     to={item.href}
                     onClick={() => setIsMoreOpen(false)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
-                      isActive
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${isActive
                         ? 'bg-true-white text-true-black'
                         : 'text-gray-300 hover:text-true-white hover:bg-gray-800'
-                    }`}
+                      }`}
                   >
                     <Icon size={16} />
                     <span className="font-medium">{item.name}</span>
