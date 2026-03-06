@@ -89,6 +89,16 @@ export function calculateAccuracy(correct: number, total: number): number {
 }
 
 /**
+ * Calculate progress for count-based tracking.
+ * Caps displayed percentage at 100%.
+ */
+export function calculateProgress(completed: number, total: number): number {
+  if (total <= 0) return 0;
+  const safeCompleted = Math.max(0, completed);
+  return Math.min(100, Math.round((safeCompleted / total) * 100));
+}
+
+/**
  * Shuffle array (Fisher-Yates)
  */
 export function shuffle<T>(array: T[]): T[] {

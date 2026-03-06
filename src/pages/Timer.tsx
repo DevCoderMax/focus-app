@@ -17,6 +17,7 @@ export function TimerPage() {
   const {
     subjects,
     topics,
+    activityPlanItems,
     settings,
     addStudySession,
     loadAllData,
@@ -28,6 +29,8 @@ export function TimerPage() {
     resetTimer,
     tickTimer,
     addQuestionHistory,
+    incrementActivityPlanProgress,
+    markActivityPlanCompleted,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
@@ -102,6 +105,13 @@ export function TimerPage() {
     if (!subjectId) return [];
     return topics.filter((topic) => topic.subjectId === subjectId);
   }, [topics, subjectId]);
+
+  const pendingActivityItemsForTopic = useMemo(() => {
+    if (!topicId) return [];
+    return activityPlanItems
+      .filter((item) => item.topicId === topicId && item.completedCount < item.targetCount)
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [activityPlanItems, topicId]);
 
   const canStart = !!subjectId && !!topicId && !!activityType;
   const canFinish = isRunning || timerSeconds > 0;
@@ -272,6 +282,49 @@ export function TimerPage() {
             Ativar modo Focus ao iniciar
           </label>
         </div>
+
+        {topicId && (
+          <div className="mt-6 rounded-lg border border-gray-800 bg-gray-950 p-4">
+            <h3 className="text-sm font-semibold text-gray-200 mb-3">Conteúdos pendentes do tema</h3>
+            {pendingActivityItemsForTopic.length === 0 ? (
+              <p className="text-sm text-gray-400">
+                Nenhum conteúdo pendente para este tema. Você pode cadastrar em Aulas.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {pendingActivityItemsForTopic.slice(0, 3).map((item) => {
+                  const done = Math.min(item.completedCount, item.targetCount);
+                  const remaining = Math.max(0, item.targetCount - done);
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-md border border-gray-800 bg-gray-900 p-3"
+                    >
+                      <div>
+                        <p className="text-sm font-medium">{item.title}</p>
+                        <p className="text-xs text-gray-400">
+                          {done}/{item.targetCount} concluídos · faltam {remaining}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => incrementActivityPlanProgress(item.id)}
+                        >
+                          +1
+                        </Button>
+                        <Button size="sm" onClick={() => markActivityPlanCompleted(item.id)}>
+                          Concluir
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="bg-gray-900 rounded-lg p-8 border border-gray-800">

@@ -3,6 +3,7 @@ import {
   formatDuration,
   formatTime,
   calculateAccuracy,
+  calculateProgress,
   shuffle,
   generateId,
 } from '@/utils/helpers';
@@ -47,6 +48,25 @@ describe('Utility Functions', () => {
 
     it('rounds to nearest integer', () => {
       expect(calculateAccuracy(2, 3)).toBe(67);
+    });
+  });
+
+  describe('calculateProgress', () => {
+    it('calculates progress percentage correctly', () => {
+      expect(calculateProgress(3, 10)).toBe(30);
+    });
+
+    it('returns 0 when total is zero or negative', () => {
+      expect(calculateProgress(3, 0)).toBe(0);
+      expect(calculateProgress(3, -5)).toBe(0);
+    });
+
+    it('caps progress at 100 percent', () => {
+      expect(calculateProgress(15, 10)).toBe(100);
+    });
+
+    it('prevents negative completed values', () => {
+      expect(calculateProgress(-3, 10)).toBe(0);
     });
   });
 

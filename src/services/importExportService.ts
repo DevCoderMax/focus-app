@@ -95,6 +95,19 @@ const QuestionHistorySchema = z.object({
   createdAt: z.string(),
 });
 
+const ActivityPlanItemSchema = z.object({
+  id: z.string(),
+  topicId: z.string(),
+  title: z.string(),
+  teacherName: z.string().optional(),
+  materialType: z.enum(['lesson', 'questions', 'lesson_questions', 'pdf']),
+  targetCount: z.number(),
+  completedCount: z.number(),
+  status: z.enum(['pending', 'completed']),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
 const SettingsSchema = z.object({
   pomodoroMinutes: z.number(),
   shortBreakMinutes: z.number(),
@@ -119,6 +132,7 @@ const ExportDataSchema = z.object({
     reviewSchedules: z.array(ReviewScheduleSchema),
     reviewAttempts: z.array(ReviewAttemptSchema),
     questionHistory: z.array(QuestionHistorySchema),
+    activityPlanItems: z.array(ActivityPlanItemSchema),
     settings: SettingsSchema,
   }),
 });
@@ -136,6 +150,7 @@ export async function exportData(): Promise<ExportData> {
     reviewSchedules,
     reviewAttempts,
     questionHistory,
+    activityPlanItems,
     settings,
   ] = await Promise.all([
     storage.getAll('subjects'),
@@ -146,6 +161,7 @@ export async function exportData(): Promise<ExportData> {
     storage.getAll('reviewSchedules'),
     storage.getAll('reviewAttempts'),
     storage.getAll('questionHistory'),
+    storage.getAll('activityPlanItems'),
     storage.getSettings(),
   ]);
 
@@ -164,6 +180,7 @@ export async function exportData(): Promise<ExportData> {
       reviewSchedules,
       reviewAttempts,
       questionHistory,
+      activityPlanItems,
       settings,
     },
   };
@@ -224,6 +241,7 @@ export async function importDataReplace(data: ExportData): Promise<void> {
     ...data.data.reviewSchedules.map((item) => storage.add('reviewSchedules', item)),
     ...data.data.reviewAttempts.map((item) => storage.add('reviewAttempts', item)),
     ...data.data.questionHistory.map((item) => storage.add('questionHistory', item)),
+    ...data.data.activityPlanItems.map((item) => storage.add('activityPlanItems', item)),
   ]);
 
   await storage.updateSettings(data.data.settings);
@@ -243,6 +261,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     existingSchedules,
     existingAttempts,
     existingHistory,
+    existingActivityPlanItems,
   ] = await Promise.all([
     storage.getAll('subjects'),
     storage.getAll('topics'),
@@ -252,6 +271,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     storage.getAll('reviewSchedules'),
     storage.getAll('reviewAttempts'),
     storage.getAll('questionHistory'),
+    storage.getAll('activityPlanItems'),
   ]);
 
   // Helper to merge items
@@ -285,6 +305,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
     mergeItems('reviewSchedules', data.data.reviewSchedules as any, existingSchedules),
     mergeItems('reviewAttempts', data.data.reviewAttempts as any, existingAttempts),
     mergeItems('questionHistory', data.data.questionHistory as any, existingHistory),
+    mergeItems('activityPlanItems', data.data.activityPlanItems as any, existingActivityPlanItems),
   ]);
 
   // Merge settings (always use imported if they exist)
@@ -305,6 +326,7 @@ export function getImportSummary(data: ExportData): {
   reviewSchedules: number;
   reviewAttempts: number;
   questionHistory: number;
+  activityPlanItems: number;
 } {
   return {
     subjects: data.data.subjects.length,
@@ -315,5 +337,6 @@ export function getImportSummary(data: ExportData): {
     reviewSchedules: data.data.reviewSchedules.length,
     reviewAttempts: data.data.reviewAttempts.length,
     questionHistory: data.data.questionHistory.length,
+    activityPlanItems: data.data.activityPlanItems.length,
   };
 }

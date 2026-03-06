@@ -9,11 +9,12 @@ import type {
   ReviewAttempt,
   Settings,
   QuestionHistoryEntry,
+  ActivityPlanItem,
 } from '@/types';
 
 const DB_NAME = 'focus-db';
 const PROFILE_KEY = 'focus.activeProfile';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export interface FocusDB {
   subjects: { key: string; value: Subject };
@@ -24,6 +25,7 @@ export interface FocusDB {
   reviewSchedules: { key: string; value: ReviewSchedule };
   reviewAttempts: { key: string; value: ReviewAttempt };
   questionHistory: { key: string; value: QuestionHistoryEntry };
+  activityPlanItems: { key: string; value: ActivityPlanItem };
   settings: { key: string; value: Settings };
 }
 
@@ -75,6 +77,11 @@ export async function getAllFromProfile<T extends keyof FocusDB>(
       if (!db.objectStoreNames.contains('questionHistory')) {
         const historyStore = db.createObjectStore('questionHistory', { keyPath: 'id' });
         historyStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('activityPlanItems')) {
+        const planStore = db.createObjectStore('activityPlanItems', { keyPath: 'id' });
+        planStore.createIndex('topicId', 'topicId');
+        planStore.createIndex('status', 'status');
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'id' });
@@ -129,6 +136,11 @@ export async function initDB(): Promise<IDBPDatabase<FocusDB>> {
       if (!db.objectStoreNames.contains('questionHistory')) {
         const historyStore = db.createObjectStore('questionHistory', { keyPath: 'id' });
         historyStore.createIndex('topicId', 'topicId');
+      }
+      if (!db.objectStoreNames.contains('activityPlanItems')) {
+        const planStore = db.createObjectStore('activityPlanItems', { keyPath: 'id' });
+        planStore.createIndex('topicId', 'topicId');
+        planStore.createIndex('status', 'status');
       }
       if (!db.objectStoreNames.contains('settings')) {
         db.createObjectStore('settings', { keyPath: 'id' });
@@ -202,6 +214,7 @@ export async function clearAll(): Promise<void> {
     'reviewSchedules',
     'reviewAttempts',
     'questionHistory',
+    'activityPlanItems',
   ];
 
   const tx = db.transaction(stores, 'readwrite');

@@ -62,6 +62,22 @@ export type StudyMode = 'pomodoro' | 'free' | 'countdown';
 
 export type ActivityType = 'lesson' | 'questions' | 'lesson_questions';
 
+export type ActivityPlanMaterialType = ActivityType | 'pdf';
+export type ActivityPlanStatus = 'pending' | 'completed';
+
+export interface ActivityPlanItem {
+  id: string;
+  topicId: string;
+  title: string;
+  teacherName?: string;
+  materialType: ActivityPlanMaterialType;
+  targetCount: number;
+  completedCount: number;
+  status: ActivityPlanStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface StudySession {
   id: string;
   topicId: string;
@@ -130,6 +146,7 @@ export interface ExportData {
     reviewSchedules: ReviewSchedule[];
     reviewAttempts: ReviewAttempt[];
     questionHistory: QuestionHistoryEntry[];
+    activityPlanItems: ActivityPlanItem[];
     settings: Settings;
   };
 }

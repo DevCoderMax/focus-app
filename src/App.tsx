@@ -8,6 +8,7 @@ import { NotesPage, QuestionsPage, ReviewsPage } from '@/pages/Placeholder';
 import { SessionsPage } from '@/pages/Sessions';
 import { TimerPage } from '@/pages/Timer';
 import { ProfilesPage } from '@/pages/Profiles';
+import { AulasPage } from '@/pages/Aulas';
 import { useStore } from '@/store';
 
 function App() {
@@ -62,6 +63,12 @@ function App() {
             path="/timer"
             element={
               activeProfileId ? <TimerPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/aulas"
+            element={
+              activeProfileId ? <AulasPage /> : <Navigate to="/profiles" replace />
             }
           />
           <Route

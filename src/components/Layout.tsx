@@ -22,6 +22,7 @@ import { formatTime } from '@/utils/helpers';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Matérias', href: '/subjects', icon: BookOpen },
+  { name: 'Aulas', href: '/aulas', icon: BookOpen },
   { name: 'Anotações', href: '/notes', icon: FileText },
   { name: 'Questões', href: '/questions', icon: HelpCircle },
   { name: 'Revisões', href: '/reviews', icon: Calendar },
@@ -49,6 +50,7 @@ export function Layout({ children }: LayoutProps) {
     activeProfileId,
     loadProfiles,
     setActiveProfile,
+    getActivityPlanProgress,
   } = useStore();
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -95,6 +97,7 @@ export function Layout({ children }: LayoutProps) {
   const isOverflowActive = overflowNavigation.some(
     (item) => item.href === location.pathname
   );
+  const activityPlanProgress = getActivityPlanProgress();
 
   return (
     <div className="min-h-screen bg-true-black text-true-white flex flex-col md:flex-row">
@@ -197,6 +200,33 @@ export function Layout({ children }: LayoutProps) {
       {/* Main content */}
       <main className="flex-1 overflow-auto pb-mobile-nav md:pb-0">
         <div className="sticky top-0 z-40 bg-true-black border-b border-gray-800">
+          <div className="px-6 pt-4">
+            <div className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900/80 px-4 py-3">
+              <div className="pointer-events-none absolute inset-0 opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[pulse_2.4s_ease-in-out_infinite]" />
+              <div className="flex items-center justify-between gap-3 text-xs mb-2">
+                <span className="uppercase tracking-[0.22em] text-gray-400">Progresso de conteúdos</span>
+                <span className="font-semibold text-true-white">
+                  {activityPlanProgress.percentage}%
+                </span>
+              </div>
+              <div className="relative h-3 rounded-sm bg-[#0d0d0d] border border-gray-800 overflow-hidden">
+                <div
+                  className="h-full rounded-sm bg-[linear-gradient(180deg,#ffffff_0%,#d0d0d0_20%,#909090_50%,#505050_75%,#181818_100%)] transition-all duration-300"
+                  style={{ width: `${activityPlanProgress.percentage}%` }}
+                />
+                {[25, 50, 75].map((milestone) => (
+                  <div
+                    key={milestone}
+                    className="absolute top-0 bottom-0 w-px bg-white/20"
+                    style={{ left: `${milestone}%` }}
+                  />
+                ))}
+              </div>
+              <div className="mt-1 text-[11px] text-gray-400 tracking-wide">
+                {activityPlanProgress.completed}/{activityPlanProgress.total} concluídos
+              </div>
+            </div>
+          </div>
           <div className="flex items-center justify-between px-6 py-4">
             <div className="text-sm text-gray-400">FOCUS</div>
             <div className="flex items-center gap-2">

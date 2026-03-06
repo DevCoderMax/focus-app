@@ -10,6 +10,7 @@ import type {
   QuestionHistoryEntry,
   Settings,
   Profile,
+  ActivityPlanItem,
 } from '@/types';
 import * as storage from '@/data/storage';
 import * as profileService from '@/services/profileService';
@@ -24,6 +25,7 @@ interface AppState {
   reviewSchedules: ReviewSchedule[];
   reviewAttempts: ReviewAttempt[];
   questionHistory: QuestionHistoryEntry[];
+  activityPlanItems: ActivityPlanItem[];
   settings: Settings | null;
   profiles: Profile[];
   activeProfileId: string | null;
@@ -74,6 +76,19 @@ interface AppState {
   // Question History
   addQuestionHistory: (entry: QuestionHistoryEntry) => Promise<void>;
   deleteQuestionHistory: (id: string) => Promise<void>;
+
+  // Activity Plan Items (Aulas/Conteúdos)
+  addActivityPlanItem: (item: ActivityPlanItem) => Promise<void>;
+  updateActivityPlanItem: (item: ActivityPlanItem) => Promise<void>;
+  deleteActivityPlanItem: (id: string) => Promise<void>;
+  incrementActivityPlanProgress: (id: string) => Promise<void>;
+  decrementActivityPlanProgress: (id: string) => Promise<void>;
+  markActivityPlanCompleted: (id: string) => Promise<void>;
+  getActivityPlanProgress: () => {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
   
   // Settings
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
@@ -105,6 +120,7 @@ export const useStore = create<AppState>((set, get) => ({
   reviewSchedules: [],
   reviewAttempts: [],
   questionHistory: [],
+  activityPlanItems: [],
   settings: null,
   profiles: [],
   activeProfileId: null,
@@ -130,6 +146,7 @@ export const useStore = create<AppState>((set, get) => ({
         reviewSchedules,
         reviewAttempts,
         questionHistory,
+        activityPlanItems,
         settings,
       ] = await Promise.all([
         storage.getAll('subjects'),
@@ -140,6 +157,7 @@ export const useStore = create<AppState>((set, get) => ({
         storage.getAll('reviewSchedules'),
         storage.getAll('reviewAttempts'),
         storage.getAll('questionHistory'),
+        storage.getAll('activityPlanItems'),
         storage.getSettings(),
       ]);
 
@@ -152,6 +170,7 @@ export const useStore = create<AppState>((set, get) => ({
         reviewSchedules,
         reviewAttempts,
         questionHistory,
+        activityPlanItems,
         settings,
         isLoading: false,
       });
@@ -290,6 +309,94 @@ export const useStore = create<AppState>((set, get) => ({
   deleteQuestionHistory: async (id) => {
     await storage.remove('questionHistory', id);
     set({ questionHistory: get().questionHistory.filter((item) => item.id !== id) });
+  },
+
+  // Activity Plan Items
+  addActivityPlanItem: async (item) => {
+    const normalizedTarget = Math.max(1, item.targetCount || 1);
+    const normalizedCompleted = Math.max(0, Math.min(item.completedCount || 0, normalizedTarget));
+    const normalized: ActivityPlanItem = {
+      ...item,
+      targetCount: normalizedTarget,
+      completedCount: normalizedCompleted,
+      status: normalizedCompleted >= normalizedTarget ? 'completed' : 'pending',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await storage.add('activityPlanItems', normalized);
+    set({ activityPlanItems: [...get().activityPlanItems, normalized] });
+  },
+
+  updateActivityPlanItem: async (item) => {
+    const normalizedTarget = Math.max(1, item.targetCount || 1);
+    const normalizedCompleted = Math.max(0, Math.min(item.completedCount || 0, normalizedTarget));
+    const normalized: ActivityPlanItem = {
+      ...item,
+      targetCount: normalizedTarget,
+      completedCount: normalizedCompleted,
+      status: normalizedCompleted >= normalizedTarget ? 'completed' : 'pending',
+      updatedAt: new Date().toISOString(),
+    };
+
+    await storage.put('activityPlanItems', normalized);
+    set({
+      activityPlanItems: get().activityPlanItems.map((planItem) =>
+        planItem.id === normalized.id ? normalized : planItem
+      ),
+    });
+  },
+
+  deleteActivityPlanItem: async (id) => {
+    await storage.remove('activityPlanItems', id);
+    set({ activityPlanItems: get().activityPlanItems.filter((item) => item.id !== id) });
+  },
+
+  incrementActivityPlanProgress: async (id) => {
+    const item = get().activityPlanItems.find((planItem) => planItem.id === id);
+    if (!item) return;
+    const completedCount = Math.min(item.targetCount, item.completedCount + 1);
+    await get().updateActivityPlanItem({
+      ...item,
+      completedCount,
+      status: completedCount >= item.targetCount ? 'completed' : 'pending',
+    });
+  },
+
+  decrementActivityPlanProgress: async (id) => {
+    const item = get().activityPlanItems.find((planItem) => planItem.id === id);
+    if (!item) return;
+    const completedCount = Math.max(0, item.completedCount - 1);
+    await get().updateActivityPlanItem({
+      ...item,
+      completedCount,
+      status: completedCount >= item.targetCount ? 'completed' : 'pending',
+    });
+  },
+
+  markActivityPlanCompleted: async (id) => {
+    const item = get().activityPlanItems.find((planItem) => planItem.id === id);
+    if (!item) return;
+    await get().updateActivityPlanItem({
+      ...item,
+      completedCount: item.targetCount,
+      status: 'completed',
+    });
+  },
+
+  getActivityPlanProgress: () => {
+    const { activityPlanItems } = get();
+    const total = activityPlanItems.reduce((sum, item) => sum + Math.max(1, item.targetCount), 0);
+    const completed = activityPlanItems.reduce(
+      (sum, item) => sum + Math.min(Math.max(0, item.completedCount), Math.max(1, item.targetCount)),
+      0
+    );
+    const percentage = total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100));
+
+    return {
+      completed,
+      total,
+      percentage,
+    };
   },
 
   // Settings
