@@ -16,6 +16,7 @@ export function AulasPage() {
   const {
     subjects,
     topics,
+    subtopics,
     activityPlanItems,
     loadAllData,
     addActivityPlanItem,
@@ -27,6 +28,7 @@ export function AulasPage() {
 
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
   const [title, setTitle] = useState('');
   const [teacherName, setTeacherName] = useState('');
   const [materialType, setMaterialType] = useState<ActivityPlanMaterialType>('lesson');
@@ -34,6 +36,7 @@ export function AulasPage() {
 
   const [filterSubjectId, setFilterSubjectId] = useState('');
   const [filterTopicId, setFilterTopicId] = useState('');
+  const [filterSubtopicId, setFilterSubtopicId] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
   const [search, setSearch] = useState('');
 
@@ -51,6 +54,18 @@ export function AulasPage() {
     return topics.filter((topic) => topic.subjectId === filterSubjectId);
   }, [topics, filterSubjectId]);
 
+  const subtopicsForTopic = useMemo(() => {
+    if (!topicId) return [];
+    return subtopics.filter((st) => st.topicId === topicId);
+  }, [subtopics, topicId]);
+
+  const subtopicsForFilterTopic = useMemo(() => {
+    if (!filterTopicId) return subtopics;
+    return subtopics.filter((st) => st.topicId === filterTopicId);
+  }, [subtopics, filterTopicId]);
+
+  const subtopicsById = useMemo(() => new Map(subtopics.map((st) => [st.id, st])), [subtopics]);
+
   const topicsById = useMemo(() => new Map(topics.map((topic) => [topic.id, topic])), [topics]);
   const subjectsById = useMemo(
     () => new Map(subjects.map((subject) => [subject.id, subject])),
@@ -67,6 +82,7 @@ export function AulasPage() {
 
         if (filterSubjectId && itemSubjectId !== filterSubjectId) return false;
         if (filterTopicId && item.topicId !== filterTopicId) return false;
+        if (filterSubtopicId && item.subtopicId !== filterSubtopicId) return false;
         if (filterStatus !== 'all' && item.status !== filterStatus) return false;
 
         if (!term) return true;
@@ -95,6 +111,7 @@ export function AulasPage() {
   const resetForm = () => {
     setSubjectId('');
     setTopicId('');
+    setSubtopicId('');
     setTitle('');
     setTeacherName('');
     setMaterialType('lesson');
@@ -109,6 +126,7 @@ export function AulasPage() {
     const item: ActivityPlanItem = {
       id: generateId(),
       topicId,
+      subtopicId: subtopicId || undefined,
       title: title.trim(),
       teacherName: teacherName.trim() || undefined,
       materialType,
@@ -155,10 +173,13 @@ export function AulasPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
             <select
               value={topicId}
-              onChange={(event) => setTopicId(event.target.value)}
+              onChange={(event) => {
+                setTopicId(event.target.value);
+                setSubtopicId('');
+              }}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
               disabled={!subjectId}
             >
@@ -166,6 +187,23 @@ export function AulasPage() {
               {topicsForSubject.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico (Opcional)</label>
+            <select
+              value={subtopicId}
+              onChange={(event) => setSubtopicId(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+              disabled={!topicId}
+            >
+              <option value="">Nenhum</option>
+              {subtopicsForTopic.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -240,16 +278,35 @@ export function AulasPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
             <select
               value={filterTopicId}
-              onChange={(event) => setFilterTopicId(event.target.value)}
+              onChange={(event) => {
+                setFilterTopicId(event.target.value);
+                setFilterSubtopicId('');
+              }}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
             >
               <option value="">Todos</option>
               {topicsForFilterSubject.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico</label>
+            <select
+              value={filterSubtopicId}
+              onChange={(event) => setFilterSubtopicId(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+            >
+              <option value="">Todos</option>
+              {subtopicsForFilterTopic.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -289,6 +346,7 @@ export function AulasPage() {
             {filteredItems.map((item) => {
               const topic = topicsById.get(item.topicId);
               const subject = topic ? subjectsById.get(topic.subjectId) : null;
+              const subtopic = item.subtopicId ? subtopicsById.get(item.subtopicId) : null;
               const done = Math.min(item.completedCount, item.targetCount);
               const progress = item.targetCount <= 0 ? 0 : Math.round((done / item.targetCount) * 100);
 
@@ -301,7 +359,7 @@ export function AulasPage() {
                     <div>
                       <p className="font-semibold text-lg">{item.title}</p>
                       <p className="text-sm text-gray-400">
-                        {subject?.name || 'Matéria'} · {topic?.name || 'Tema'} ·{' '}
+                        {subject?.name || 'Matéria'} · {topic?.name || 'Tópico'} {subtopic ? `· ${subtopic.name} ` : ''}·{' '}
                         {MATERIAL_OPTIONS.find((option) => option.value === item.materialType)?.label}
                         {item.teacherName ? ` · ${item.teacherName}` : ''}
                       </p>

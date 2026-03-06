@@ -71,7 +71,7 @@ export function DashboardPage() {
   const stats = useMemo(() => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
+
     // Total study time today
     const todaySessions = studySessions.filter(
       (s) => new Date(s.startedAt) >= today
@@ -86,7 +86,7 @@ export function DashboardPage() {
     const sessionDates = new Set(
       studySessions.map((s) => new Date(s.startedAt).toDateString())
     );
-    
+
     while (sessionDates.has(checkDate.toDateString())) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
@@ -103,9 +103,9 @@ export function DashboardPage() {
     const avgAccuracy =
       reviewAttempts.length > 0
         ? Math.round(
-            reviewAttempts.reduce((sum, a) => sum + a.accuracy, 0) /
-              reviewAttempts.length
-          )
+          reviewAttempts.reduce((sum, a) => sum + a.accuracy, 0) /
+          reviewAttempts.length
+        )
         : 0;
 
     return {
@@ -119,7 +119,7 @@ export function DashboardPage() {
   // Calculate comprehensive topic metrics
   const topicMetrics = useMemo((): TopicMetrics[] => {
     const metricsMap = new Map<string, TopicMetrics>();
-    
+
     // Initialize metrics for each topic
     topics.forEach((topic) => {
       const subject = subjects.find((s) => s.id === topic.subjectId);
@@ -143,45 +143,45 @@ export function DashboardPage() {
         improvementPotential: false,
       });
     });
-    
+
     // Aggregate question history by topic
     questionHistory.forEach((entry) => {
       const metrics = metricsMap.get(entry.topicId);
       if (!metrics) return;
-      
+
       metrics.totalQuestions += entry.correctCount + entry.wrongCount + entry.blankCount;
       metrics.correctCount += entry.correctCount;
       metrics.wrongCount += entry.wrongCount;
       metrics.blankCount += entry.blankCount;
     });
-    
+
     // Calculate derived metrics
     metricsMap.forEach((metrics) => {
       // Accuracy percentage
       const answered = metrics.correctCount + metrics.wrongCount;
-      metrics.accuracyPercent = answered > 0 
-        ? Math.round((metrics.correctCount / answered) * 100) 
+      metrics.accuracyPercent = answered > 0
+        ? Math.round((metrics.correctCount / answered) * 100)
         : 0;
-      
+
       // Confidence index
       metrics.confidenceIndex = calculateConfidenceIndex(metrics.accuracyPercent, metrics.totalQuestions);
-      
+
       // Weakness detection
       metrics.isWeakness = isConsolidatedWeakness(metrics.totalQuestions, metrics.accuracyPercent);
       metrics.isLittleTrained = isLittleTrained(metrics.totalQuestions);
-      
+
       // Strength classification
       metrics.strength = getTopicStrength(metrics.accuracyPercent, metrics.totalQuestions);
-      
+
       // Improvement potential
       metrics.improvementPotential = hasImprovementPotential(metrics.accuracyPercent);
     });
-    
+
     // Calculate trend (needs chronological order)
     const sortedHistory = [...questionHistory].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
-    
+
     const topicHistoryMap = new Map<string, { correct: number; total: number }[]>();
     sortedHistory.forEach((entry) => {
       const topicHistory = topicHistoryMap.get(entry.topicId) || [];
@@ -189,45 +189,45 @@ export function DashboardPage() {
       topicHistory.push({ correct: entry.correctCount, total: answered });
       topicHistoryMap.set(entry.topicId, topicHistory);
     });
-    
+
     topicHistoryMap.forEach((history, topicId) => {
       const metrics = metricsMap.get(topicId);
       if (!metrics || history.length === 0) return;
-      
+
       const recent20 = history.slice(-20);
       const previous = history.slice(0, -20);
-      
+
       const recentCorrect = recent20.reduce((sum, h) => sum + h.correct, 0);
       const recentTotal = recent20.reduce((sum, h) => sum + h.total, 0);
       metrics.recentAccuracy = recentTotal > 0 ? Math.round((recentCorrect / recentTotal) * 100) : 0;
-      
+
       const previousCorrect = previous.reduce((sum, h) => sum + h.correct, 0);
       const previousTotal = previous.reduce((sum, h) => sum + h.total, 0);
       metrics.previousAccuracy = previousTotal > 0 ? Math.round((previousCorrect / previousTotal) * 100) : 0;
-      
+
       metrics.trend = getTrendDirection(metrics.recentAccuracy, metrics.previousAccuracy);
     });
-    
+
     return Array.from(metricsMap.values()).filter(m => m.totalQuestions > 0);
   }, [topics, subjects, questionHistory]);
 
   // Sorted topics by different criteria
-  const weakTopics = useMemo(() => 
+  const weakTopics = useMemo(() =>
     topicMetrics.filter(m => m.strength === 'weak' || m.isWeakness).sort((a, b) => a.accuracyPercent - b.accuracyPercent),
     [topicMetrics]
   );
 
-  const strongTopics = useMemo(() => 
+  const strongTopics = useMemo(() =>
     topicMetrics.filter(m => m.strength === 'strong').sort((a, b) => b.confidenceIndex - a.confidenceIndex),
     [topicMetrics]
   );
 
-  const improvementTopics = useMemo(() => 
+  const improvementTopics = useMemo(() =>
     topicMetrics.filter(m => m.improvementPotential).sort((a, b) => b.confidenceIndex - a.confidenceIndex),
     [topicMetrics]
   );
 
-  const risingTopics = useMemo(() => 
+  const risingTopics = useMemo(() =>
     topicMetrics.filter(m => m.trend === 'rising').sort((a, b) => b.recentAccuracy - a.recentAccuracy),
     [topicMetrics]
   );
@@ -236,24 +236,24 @@ export function DashboardPage() {
   const chartData = useMemo(() => {
     const days = [];
     const today = new Date();
-    
+
     for (let i = chartRangeDays - 1; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       date.setHours(0, 0, 0, 0);
-      
+
       const nextDay = new Date(date);
       nextDay.setDate(nextDay.getDate() + 1);
-      
+
       const daySessions = studySessions.filter((s) => {
         const sessionDate = new Date(s.startedAt);
         return sessionDate >= date && sessionDate < nextDay;
       });
-      
+
       const minutes = Math.floor(
         daySessions.reduce((sum, s) => sum + s.durationSec, 0) / 60
       );
-      
+
       days.push({
         name:
           chartRangeDays <= 7
@@ -262,7 +262,7 @@ export function DashboardPage() {
         minutes,
       });
     }
-    
+
     return days;
   }, [studySessions, chartRangeDays]);
 
@@ -306,7 +306,7 @@ export function DashboardPage() {
   // Top 3 worst performing topics (legacy)
   const worstTopics = useMemo(() => {
     const topicAccuracy = new Map<string, { total: number; count: number }>();
-    
+
     reviewAttempts.forEach((attempt) => {
       const schedule = useStore
         .getState()
@@ -322,7 +322,7 @@ export function DashboardPage() {
         });
       }
     });
-    
+
     return Array.from(topicAccuracy.entries())
       .map(([topicId, data]) => {
         const topic = topics.find((t) => t.id === topicId);
@@ -367,7 +367,7 @@ export function DashboardPage() {
   // Single topic row component
   const TopicRow = ({ metrics }: { metrics: TopicMetrics }) => {
     const badge = getStrengthBadge(metrics.strength);
-    
+
     return (
       <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors">
         <div className="flex-1 min-w-0">
@@ -395,39 +395,38 @@ export function DashboardPage() {
           </div>
           <p className="text-sm text-gray-400 truncate">{metrics.subjectName}</p>
         </div>
-        
+
         <div className="flex items-center gap-6 ml-4">
           {/* Basic stats */}
           <div className="text-center hidden md:block">
             <p className="text-lg font-bold">{metrics.totalQuestions}</p>
             <p className="text-xs text-gray-500">Questões</p>
           </div>
-          
+
           <div className="text-center hidden md:block">
             <p className="text-lg font-bold text-green-400">{metrics.correctCount}</p>
             <p className="text-xs text-gray-500">Acertos</p>
           </div>
-          
+
           <div className="text-center hidden md:block">
             <p className="text-lg font-bold text-red-400">{metrics.wrongCount}</p>
             <p className="text-xs text-gray-500">Erros</p>
           </div>
-          
+
           {/* Main accuracy */}
           <div className="text-center min-w-[60px]">
             <div className="flex items-center justify-center gap-1">
-              <p className={`text-2xl font-bold ${
-                metrics.accuracyPercent >= 80 ? 'text-green-400' :
-                metrics.accuracyPercent >= 60 ? 'text-yellow-400' :
-                metrics.accuracyPercent > 0 ? 'text-red-400' : 'text-gray-400'
-              }`}>
+              <p className={`text-2xl font-bold ${metrics.accuracyPercent >= 80 ? 'text-green-400' :
+                  metrics.accuracyPercent >= 60 ? 'text-yellow-400' :
+                    metrics.accuracyPercent > 0 ? 'text-red-400' : 'text-gray-400'
+                }`}>
                 {metrics.accuracyPercent}%
               </p>
               {getTrendIcon(metrics.trend)}
             </div>
             <p className="text-xs text-gray-500">Precisão</p>
           </div>
-          
+
           {/* Confidence Index */}
           <div className="text-center min-w-[60px] hidden lg:block">
             <p className="text-lg font-bold">{metrics.confidenceIndex}</p>
@@ -561,7 +560,7 @@ export function DashboardPage() {
       {/* Worst performing topics */}
       {worstTopics.length > 0 && (
         <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
-          <h2 className="text-xl font-bold mb-4">Temas que precisam de atenção</h2>
+          <h2 className="text-xl font-bold mb-4">Tópicos que precisam de atenção</h2>
           <div className="space-y-3">
             {worstTopics.map((topic) => (
               <div
@@ -586,7 +585,7 @@ export function DashboardPage() {
       {topicMetrics.length > 0 && (
         <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-            <h2 className="text-xl font-bold">Análise por Tema</h2>
+            <h2 className="text-xl font-bold">Análise por Tópico</h2>
             <button
               onClick={() => setShowDetailedMetrics(!showDetailedMetrics)}
               className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm transition-colors"
@@ -601,7 +600,7 @@ export function DashboardPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-green-400">{strongTopics.length}</p>
-                  <p className="text-sm text-gray-400">Temas fortes</p>
+                  <p className="text-sm text-gray-400">Tópicos fortes</p>
                 </div>
                 <div className="bg-gray-800 rounded-lg p-4 text-center">
                   <p className="text-2xl font-bold text-yellow-400">{topicMetrics.filter(m => m.strength === 'intermediate').length}</p>
@@ -625,7 +624,7 @@ export function DashboardPage() {
                     Melhor retorno (60-75% de acerto)
                   </h3>
                   <p className="text-sm text-gray-400 mb-3">
-                    Nestes temas você tem o maior ganho de pontos com menos esforço
+                    Nestes tópicos você tem o maior ganho de pontos com menos esforço
                   </p>
                   <div className="space-y-2">
                     {improvementTopics.map((m) => (
@@ -658,7 +657,7 @@ export function DashboardPage() {
                     Fraquezas consolidadas
                   </h3>
                   <p className="text-sm text-gray-400 mb-3">
-                    Estes temas têm pelo menos 20 questões feitas e menos de 70% de acerto
+                    Estes tópicos têm pelo menos 20 questões feitas e menos de 70% de acerto
                   </p>
                   <div className="space-y-2">
                     {weakTopics.map((m) => (
@@ -670,7 +669,7 @@ export function DashboardPage() {
 
               {/* All topics */}
               <div>
-                <h3 className="text-lg font-semibold mb-3">Todos os temas</h3>
+                <h3 className="text-lg font-semibold mb-3">Todos os tópicos</h3>
                 <div className="space-y-2">
                   {topicMetrics
                     .sort((a, b) => {
@@ -697,7 +696,7 @@ export function DashboardPage() {
                 ))}
               {topicMetrics.length > 5 && (
                 <p className="text-center text-gray-400 text-sm py-2">
-                  + {topicMetrics.length - 5} outros temas
+                  + {topicMetrics.length - 5} outros tópicos
                 </p>
               )}
             </div>

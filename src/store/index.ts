@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type {
   Subject,
   Topic,
+  Subtopic,
   Note,
   Question,
   StudySession,
@@ -19,6 +20,7 @@ interface AppState {
   // Data
   subjects: Subject[];
   topics: Topic[];
+  subtopics: Subtopic[];
   notes: Note[];
   questions: Question[];
   studySessions: StudySession[];
@@ -41,35 +43,40 @@ interface AppState {
 
   // Actions
   loadAllData: () => Promise<void>;
-  
+
   // Subjects
   addSubject: (subject: Subject) => Promise<void>;
   updateSubject: (subject: Subject) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
-  
+
   // Topics
   addTopic: (topic: Topic) => Promise<void>;
   updateTopic: (topic: Topic) => Promise<void>;
   deleteTopic: (id: string) => Promise<void>;
-  
+
+  // Subtopics
+  addSubtopic: (subtopic: Subtopic) => Promise<void>;
+  updateSubtopic: (subtopic: Subtopic) => Promise<void>;
+  deleteSubtopic: (id: string) => Promise<void>;
+
   // Notes
   addNote: (note: Note) => Promise<void>;
   updateNote: (note: Note) => Promise<void>;
   deleteNote: (id: string) => Promise<void>;
-  
+
   // Questions
   addQuestion: (question: Question) => Promise<void>;
   updateQuestion: (question: Question) => Promise<void>;
   deleteQuestion: (id: string) => Promise<void>;
-  
+
   // Study Sessions
   addStudySession: (session: StudySession) => Promise<void>;
   deleteStudySession: (id: string) => Promise<void>;
-  
+
   // Review Schedules
   addReviewSchedule: (schedule: ReviewSchedule) => Promise<void>;
   updateReviewSchedule: (schedule: ReviewSchedule) => Promise<void>;
-  
+
   // Review Attempts
   addReviewAttempt: (attempt: ReviewAttempt) => Promise<void>;
 
@@ -89,7 +96,7 @@ interface AppState {
     total: number;
     percentage: number;
   };
-  
+
   // Settings
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
 
@@ -105,7 +112,7 @@ interface AppState {
   pauseTimer: () => void;
   resetTimer: () => void;
   tickTimer: () => void;
-  
+
   // Refresh data
   refreshData: () => Promise<void>;
 }
@@ -114,6 +121,7 @@ export const useStore = create<AppState>((set, get) => ({
   // Initial state
   subjects: [],
   topics: [],
+  subtopics: [],
   notes: [],
   questions: [],
   studySessions: [],
@@ -136,10 +144,11 @@ export const useStore = create<AppState>((set, get) => ({
     try {
       await storage.initDB();
       await storage.initSettings();
-      
+
       const [
         subjects,
         topics,
+        subtopics,
         notes,
         questions,
         studySessions,
@@ -151,6 +160,7 @@ export const useStore = create<AppState>((set, get) => ({
       ] = await Promise.all([
         storage.getAll('subjects'),
         storage.getAll('topics'),
+        storage.getAll('subtopics'),
         storage.getAll('notes'),
         storage.getAll('questions'),
         storage.getAll('studySessions'),
@@ -164,6 +174,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({
         subjects,
         topics,
+        subtopics,
         notes,
         questions,
         studySessions,
@@ -219,19 +230,43 @@ export const useStore = create<AppState>((set, get) => ({
   deleteTopic: async (id) => {
     await storage.remove('topics', id);
     // Delete related items
+    const subtopicsToDelete = get().subtopics.filter((st) => st.topicId === id);
+    for (const subtopic of subtopicsToDelete) {
+      await get().deleteSubtopic(subtopic.id);
+    }
+
     const notesToDelete = get().notes.filter((n) => n.topicId === id);
     const questionsToDelete = get().questions.filter((q) => q.topicId === id);
-    
+
     await Promise.all([
       ...notesToDelete.map((n) => storage.remove('notes', n.id)),
       ...questionsToDelete.map((q) => storage.remove('questions', q.id)),
     ]);
-    
+
     set({
       topics: get().topics.filter((t) => t.id !== id),
       notes: get().notes.filter((n) => n.topicId !== id),
       questions: get().questions.filter((q) => q.topicId !== id),
     });
+  },
+
+  // Subtopics
+  addSubtopic: async (subtopic) => {
+    await storage.add('subtopics', subtopic);
+    set({ subtopics: [...get().subtopics, subtopic] });
+  },
+
+  updateSubtopic: async (subtopic) => {
+    await storage.put('subtopics', subtopic);
+    set({
+      subtopics: get().subtopics.map((t) => (t.id === subtopic.id ? subtopic : t)),
+    });
+  },
+
+  deleteSubtopic: async (id) => {
+    await storage.remove('subtopics', id);
+    // Future cascades depending on requirements (notes, questions linked to the subtopic)
+    set({ subtopics: get().subtopics.filter((t) => t.id !== id) });
   },
 
   // Notes

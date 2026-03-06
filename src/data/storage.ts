@@ -14,11 +14,12 @@ import type {
 
 const DB_NAME = 'focus-db';
 const PROFILE_KEY = 'focus.activeProfile';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export interface FocusDB {
   subjects: { key: string; value: Subject };
   topics: { key: string; value: Topic };
+  subtopics: { key: string; value: import('@/types').Subtopic };
   notes: { key: string; value: Note };
   questions: { key: string; value: Question };
   studySessions: { key: string; value: StudySession };
@@ -52,6 +53,10 @@ export async function getAllFromProfile<T extends keyof FocusDB>(
       if (!db.objectStoreNames.contains('topics')) {
         const topicStore = db.createObjectStore('topics', { keyPath: 'id' });
         topicStore.createIndex('subjectId', 'subjectId');
+      }
+      if (!db.objectStoreNames.contains('subtopics')) {
+        const subtopicStore = db.createObjectStore('subtopics', { keyPath: 'id' });
+        subtopicStore.createIndex('topicId', 'topicId');
       }
       if (!db.objectStoreNames.contains('notes')) {
         const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
@@ -111,6 +116,10 @@ export async function initDB(): Promise<IDBPDatabase<FocusDB>> {
       if (!db.objectStoreNames.contains('topics')) {
         const topicStore = db.createObjectStore('topics', { keyPath: 'id' });
         topicStore.createIndex('subjectId', 'subjectId');
+      }
+      if (!db.objectStoreNames.contains('subtopics')) {
+        const subtopicStore = db.createObjectStore('subtopics', { keyPath: 'id' });
+        subtopicStore.createIndex('topicId', 'topicId');
       }
       if (!db.objectStoreNames.contains('notes')) {
         const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
@@ -208,6 +217,7 @@ export async function clearAll(): Promise<void> {
   const stores: (keyof FocusDB)[] = [
     'subjects',
     'topics',
+    'subtopics',
     'notes',
     'questions',
     'studySessions',
@@ -226,7 +236,7 @@ export async function clearAll(): Promise<void> {
 export async function initSettings(): Promise<void> {
   const db = await initDB();
   const existing = await db.get('settings', 'default');
-  
+
   if (!existing) {
     const defaultSettings: Settings = {
       pomodoroMinutes: 25,
@@ -236,7 +246,7 @@ export async function initSettings(): Promise<void> {
       enableSounds: true,
       theme: 'dark',
     };
-    
+
     await db.put('settings', { ...defaultSettings, id: 'default' } as any);
   }
 }
@@ -244,12 +254,12 @@ export async function initSettings(): Promise<void> {
 export async function getSettings(): Promise<Settings> {
   const db = await initDB();
   const settings = await db.get('settings', 'default');
-  
+
   if (!settings) {
     await initSettings();
     return getSettings();
   }
-  
+
   return settings as Settings;
 }
 

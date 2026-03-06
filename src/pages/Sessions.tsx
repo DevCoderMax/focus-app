@@ -32,9 +32,10 @@ function formatActivityLabel(activityType?: string) {
 }
 
 export function SessionsPage() {
-  const { studySessions, subjects, topics, loadAllData, deleteStudySession } = useStore();
+  const { studySessions, subjects, topics, subtopics, loadAllData, deleteStudySession } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
   const [dateFrom, setDateFrom] = useState(() => {
     const now = new Date();
     now.setDate(now.getDate() - 6);
@@ -54,10 +55,19 @@ export function SessionsPage() {
     return new Map(subjects.map((subject) => [subject.id, subject]));
   }, [subjects]);
 
+  const subtopicsById = useMemo(() => {
+    return new Map(subtopics.map((st) => [st.id, st]));
+  }, [subtopics]);
+
   const topicsForFilter = useMemo(() => {
     if (!subjectId) return topics;
     return topics.filter((topic) => topic.subjectId === subjectId);
   }, [topics, subjectId]);
+
+  const subtopicsForFilter = useMemo(() => {
+    if (!topicId) return subtopics;
+    return subtopics.filter((st) => st.topicId === topicId);
+  }, [subtopics, topicId]);
 
   const filteredSessions = useMemo(() => {
     const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
@@ -75,6 +85,7 @@ export function SessionsPage() {
         }
 
         if (topicId && session.topicId !== topicId) return false;
+        if (subtopicId && session.subtopicId !== subtopicId) return false;
 
         return true;
       })
@@ -128,16 +139,34 @@ export function SessionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
             <select
               value={topicId}
-              onChange={(event) => setTopicId(event.target.value)}
+              onChange={(event) => {
+                setTopicId(event.target.value);
+                setSubtopicId('');
+              }}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
             >
               <option value="">Todos</option>
               {topicsForFilter.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico</label>
+            <select
+              value={subtopicId}
+              onChange={(event) => setSubtopicId(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+            >
+              <option value="">Todos</option>
+              {subtopicsForFilter.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -156,6 +185,7 @@ export function SessionsPage() {
           {filteredSessions.map((session) => {
             const topic = topicsById.get(session.topicId);
             const subject = topic ? subjectsById.get(topic.subjectId) : null;
+            const subtopic = session.subtopicId ? subtopicsById.get(session.subtopicId) : null;
 
             return (
               <div
@@ -167,15 +197,15 @@ export function SessionsPage() {
                     {subject?.name || 'Matéria não encontrada'}
                   </p>
                   <p className="text-sm text-gray-400">
-                    {topic?.name || 'Tema não encontrado'}
+                    {topic?.name || 'Tópico não encontrado'} {subtopic ? `· ${subtopic.name}` : ''}
                   </p>
-                <div className="text-sm text-gray-500 mt-2">
-                  {formatDate(session.startedAt)} · {toTimeLabel(session.startedAt)} — {toTimeLabel(session.endedAt)}
+                  <div className="text-sm text-gray-500 mt-2">
+                    {formatDate(session.startedAt)} · {toTimeLabel(session.startedAt)} — {toTimeLabel(session.endedAt)}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">
+                    {formatActivityLabel(session.activityType)}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {formatActivityLabel(session.activityType)}
-                </div>
-              </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
                     <p className="text-2xl font-bold">{formatDuration(session.durationSec)}</p>

@@ -4,17 +4,21 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
-import type { Subject, Topic } from '@/types';
+import type { Subject, Topic, Subtopic } from '@/types';
 import { getAllFromProfile } from '@/data/storage';
 
 export function SubjectsPage() {
-  const { subjects, topics, addSubject, deleteSubject, addTopic, deleteTopic, loadAllData } = useStore();
+  const { subjects, topics, subtopics, addSubject, deleteSubject, addTopic, deleteTopic, addSubtopic, deleteSubtopic, loadAllData } = useStore();
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isAddingTopic, setIsAddingTopic] = useState<string | null>(null);
+  const [isAddingSubtopic, setIsAddingSubtopic] = useState<string | null>(null);
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newTopicName, setNewTopicName] = useState('');
   const [newTopicDesc, setNewTopicDesc] = useState('');
+  const [newSubtopicName, setNewSubtopicName] = useState('');
+  const [newSubtopicDesc, setNewSubtopicDesc] = useState('');
   const [topicSearch, setTopicSearch] = useState<Record<string, string>>({});
+  const [collapsedTopics, setCollapsedTopics] = useState<Record<string, boolean>>({});
   const [collapsedSubjects, setCollapsedSubjects] = useState<Record<string, boolean>>(() => {
     try {
       const stored = window.localStorage.getItem('focus.subjects.collapsed');
@@ -104,8 +108,30 @@ export function SubjectsPage() {
     setIsAddingTopic(null);
   };
 
+  const handleAddSubtopic = async (topicId: string) => {
+    if (!newSubtopicName.trim()) return;
+
+    const subtopic: Subtopic = {
+      id: generateId(),
+      topicId,
+      name: newSubtopicName,
+      description: newSubtopicDesc || undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await addSubtopic(subtopic);
+    setNewSubtopicName('');
+    setNewSubtopicDesc('');
+    setIsAddingSubtopic(null);
+  };
+
   const getTopicsForSubject = (subjectId: string) => {
     return topics.filter((t) => t.subjectId === subjectId);
+  };
+
+  const getSubtopicsForTopic = (topicId: string) => {
+    return subtopics.filter((st) => st.topicId === topicId);
   };
 
   const getFilteredTopics = (subjectId: string) => {
@@ -185,7 +211,7 @@ export function SubjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-4xl font-bold mb-2">Matérias & Temas</h1>
+          <h1 className="text-4xl font-bold mb-2">Matérias & Tópicos</h1>
           <p className="text-gray-400">Organize seus estudos por assunto</p>
         </div>
         <div className="flex gap-3">
@@ -240,7 +266,7 @@ export function SubjectsPage() {
         <div className="space-y-6">
           {subjects.map((subject) => {
             const subjectTopics = getTopicsForSubject(subject.id);
-            
+
             return (
               <div
                 key={subject.id}
@@ -263,8 +289,8 @@ export function SubjectsPage() {
                       type="button"
                       aria-label={
                         collapsedSubjects[subject.id]
-                          ? 'Expandir temas'
-                          : 'Recolher temas'
+                          ? 'Expandir tópicos'
+                          : 'Recolher tópicos'
                       }
                       className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
                       onClick={(event) => {
@@ -284,7 +310,7 @@ export function SubjectsPage() {
                     <div>
                       <h2 className="text-xl font-bold">{subject.name}</h2>
                       <p className="text-sm text-gray-400">
-                        {subjectTopics.length} tema(s)
+                        {subjectTopics.length} tópico(s)
                       </p>
                     </div>
                   </div>
@@ -298,14 +324,14 @@ export function SubjectsPage() {
                       }}
                     >
                       <Plus size={16} className="mr-1" />
-                      Tema
+                      Tópico
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={(event) => {
                         event.stopPropagation();
-                        if (confirm('Deletar esta matéria e todos os seus temas?')) {
+                        if (confirm('Deletar esta matéria e todos os seus tópicos?')) {
                           deleteSubject(subject.id);
                         }
                       }}
@@ -318,10 +344,10 @@ export function SubjectsPage() {
                 {/* Add Topic Form */}
                 {isAddingTopic === subject.id && (
                   <div className="p-6 bg-gray-800 border-b border-gray-700">
-                    <h4 className="font-bold mb-4">Novo Tema</h4>
+                    <h4 className="font-bold mb-4">Novo Tópico</h4>
                     <div className="space-y-3">
                       <Input
-                        label="Nome do tema"
+                        label="Nome do tópico"
                         value={newTopicName}
                         onChange={(e) => setNewTopicName(e.target.value)}
                         placeholder="Ex: Equações do 2º grau"
@@ -331,7 +357,7 @@ export function SubjectsPage() {
                         label="Descrição (opcional)"
                         value={newTopicDesc}
                         onChange={(e) => setNewTopicDesc(e.target.value)}
-                        placeholder="Breve descrição do tema"
+                        placeholder="Breve descrição do tópico"
                       />
                       <div className="flex gap-3">
                         <Button size="sm" onClick={() => handleAddTopic(subject.id)}>
@@ -358,7 +384,7 @@ export function SubjectsPage() {
                   <div className="p-6">
                     <div className="mb-4">
                       <Input
-                        label="Buscar tema"
+                        label="Buscar tópico"
                         value={topicSearch[subject.id] || ''}
                         onChange={(event) =>
                           setTopicSearch((prev) => ({
@@ -366,36 +392,141 @@ export function SubjectsPage() {
                             [subject.id]: event.target.value,
                           }))
                         }
-                        placeholder="Digite para filtrar temas"
+                        placeholder="Digite para filtrar tópicos"
                       />
                     </div>
-                    <div className="space-y-2">
-                      {getFilteredTopics(subject.id).map((topic) => (
-                        <div
-                          key={topic.id}
-                          className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors"
-                        >
-                          <div>
-                            <p className="font-medium">{topic.name}</p>
-                            {topic.description && (
-                              <p className="text-sm text-gray-400 mt-1">
-                                {topic.description}
-                              </p>
+                    <div className="space-y-4">
+                      {getFilteredTopics(subject.id).map((topic) => {
+                        const topicSubtopics = getSubtopicsForTopic(topic.id);
+                        return (
+                          <div
+                            key={topic.id}
+                            className="bg-gray-800 rounded-lg overflow-hidden border border-gray-750"
+                          >
+                            <div
+                              className="flex items-center justify-between p-4 hover:bg-gray-750 transition-colors cursor-pointer"
+                              onClick={() => setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }))}
+                            >
+                              <div className="flex items-center gap-3">
+                                <button
+                                  type="button"
+                                  className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }));
+                                  }}
+                                >
+                                  {collapsedTopics[topic.id] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                                </button>
+                                <div>
+                                  <p className="font-medium">{topic.name}</p>
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {topicSubtopics.length} subtópico(s) {topic.description ? `· ${topic.description}` : ''}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsAddingSubtopic(topic.id);
+                                    if (collapsedTopics[topic.id]) {
+                                      setCollapsedTopics(prev => ({ ...prev, [topic.id]: false }));
+                                    }
+                                  }}
+                                >
+                                  <Plus size={14} className="mr-1" />
+                                  Subtópico
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm('Deletar este tópico e todos os seus subtópicos?')) {
+                                      deleteTopic(topic.id);
+                                    }
+                                  }}
+                                >
+                                  <Trash2 size={16} />
+                                </Button>
+                              </div>
+                            </div>
+
+                            {/* Add Subtopic Form */}
+                            {isAddingSubtopic === topic.id && (
+                              <div className="p-4 bg-gray-750 border-t border-gray-700">
+                                <h5 className="font-semibold mb-3 text-sm">Novo Subtópico</h5>
+                                <div className="space-y-3">
+                                  <Input
+                                    label="Nome do subtópico"
+                                    value={newSubtopicName}
+                                    onChange={(e) => setNewSubtopicName(e.target.value)}
+                                    placeholder="Ex: Teoria de algo"
+                                    autoFocus
+                                  />
+                                  <Input
+                                    label="Descrição (opcional)"
+                                    value={newSubtopicDesc}
+                                    onChange={(e) => setNewSubtopicDesc(e.target.value)}
+                                    placeholder="Breve descrição"
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button size="sm" onClick={() => handleAddSubtopic(topic.id)}>
+                                      Criar
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        setIsAddingSubtopic(null);
+                                        setNewSubtopicName('');
+                                        setNewSubtopicDesc('');
+                                      }}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Subtopics List */}
+                            {!collapsedTopics[topic.id] && topicSubtopics.length > 0 && (
+                              <div className="p-4 border-t border-gray-750 bg-gray-900/50 space-y-2">
+                                {topicSubtopics.map((subtopic) => (
+                                  <div
+                                    key={subtopic.id}
+                                    className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-750"
+                                  >
+                                    <div>
+                                      <p className="font-medium text-sm">{subtopic.name}</p>
+                                      {subtopic.description && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {subtopic.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => {
+                                        if (confirm('Deletar este subtópico?')) {
+                                          deleteSubtopic(subtopic.id);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 size={14} />
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              if (confirm('Deletar este tema?')) {
-                                deleteTopic(topic.id);
-                              }
-                            }}
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -409,14 +540,14 @@ export function SubjectsPage() {
         <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[80vh] overflow-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Importar matérias e temas</h2>
+              <h2 className="text-xl font-bold">Importar matérias e tópicos</h2>
               <Button variant="ghost" onClick={() => setShowImportModal(false)}>
                 Fechar
               </Button>
             </div>
             <div className="mb-4">
               <Input
-                label="Buscar matéria ou tema"
+                label="Buscar matéria ou tópico"
                 value={importSearch}
                 onChange={(event) => setImportSearch(event.target.value)}
                 placeholder="Digite para filtrar"
@@ -433,14 +564,14 @@ export function SubjectsPage() {
                       className="border border-gray-800 rounded-lg p-4"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="pt-1 text-xs text-gray-500">Temas</div>
+                        <div className="pt-1 text-xs text-gray-500">Tópicos</div>
                         <div>
                           <p className="font-semibold">
                             {item.subject.name}
                             <span className="text-xs text-gray-500 ml-2">({item.profileName})</span>
                           </p>
                           <p className="text-xs text-gray-400 mt-1">
-                            Selecione os temas para importar
+                            Selecione os tópicos para importar
                           </p>
                           <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
                             {item.topics.map((topic) => {

@@ -28,6 +28,7 @@ export function NotesPage() {
     notes,
     subjects,
     topics,
+    subtopics,
     addNote,
     updateNote,
     deleteNote,
@@ -37,6 +38,7 @@ export function NotesPage() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
   const [title, setTitle] = useState('');
   const editorWrapperRef = useRef<HTMLDivElement | null>(null);
   const [highlightMenu, setHighlightMenu] = useState({
@@ -44,7 +46,7 @@ export function NotesPage() {
     top: 0,
     left: 0,
   });
-  
+
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
@@ -116,14 +118,16 @@ export function NotesPage() {
     };
   }, [editor]);
 
-  useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
 
   const topicsForSubject = useMemo(() => {
     if (!subjectId) return [];
     return topics.filter((topic) => topic.subjectId === subjectId);
   }, [topics, subjectId]);
+
+  const subtopicsForTopic = useMemo(() => {
+    if (!topicId) return [];
+    return subtopics.filter((st) => st.topicId === topicId);
+  }, [subtopics, topicId]);
 
   const filteredNotes = useMemo(() => {
     const term = search.toLowerCase();
@@ -137,6 +141,7 @@ export function NotesPage() {
     setEditingNoteId(null);
     setSubjectId('');
     setTopicId('');
+    setSubtopicId('');
     setTitle('');
     editor?.commands.setContent('<p></p>');
   };
@@ -150,6 +155,7 @@ export function NotesPage() {
       await updateNote({
         id: editingNoteId,
         topicId,
+        subtopicId: subtopicId || undefined,
         title: title.trim(),
         content,
         createdAt: notes.find((n) => n.id === editingNoteId)?.createdAt || now,
@@ -159,6 +165,7 @@ export function NotesPage() {
       await addNote({
         id: generateId(),
         topicId,
+        subtopicId: subtopicId || undefined,
         title: title.trim(),
         content,
         createdAt: now,
@@ -177,6 +184,7 @@ export function NotesPage() {
     setEditingNoteId(note.id);
     setSubjectId(topic?.subjectId || '');
     setTopicId(note.topicId);
+    setSubtopicId(note.subtopicId || '');
     setTitle(note.title);
     editor?.commands.setContent(note.content || '<p></p>');
   };
@@ -186,7 +194,7 @@ export function NotesPage() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-4xl font-bold mb-2">Anotações</h1>
-          <p className="text-gray-400">Crie e organize suas notas por tema</p>
+          <p className="text-gray-400">Crie e organize suas notas por tópico</p>
         </div>
         <Button onClick={() => setIsEditing(true)}>Nova anotação</Button>
       </div>
@@ -207,6 +215,7 @@ export function NotesPage() {
           {filteredNotes.map((note) => {
             const topic = topics.find((t) => t.id === note.topicId);
             const subject = subjects.find((s) => s.id === topic?.subjectId);
+            const subtopic = note.subtopicId ? subtopics.find((st) => st.id === note.subtopicId) : null;
             return (
               <div
                 key={note.id}
@@ -215,7 +224,7 @@ export function NotesPage() {
                 <div>
                   <h3 className="text-lg font-bold">{note.title}</h3>
                   <p className="text-sm text-gray-400">
-                    {subject?.name || 'Matéria'} · {topic?.name || 'Tema'}
+                    {subject?.name || 'Matéria'} · {topic?.name || 'Tópico'} {subtopic ? `· ${subtopic.name}` : ''}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     Atualizado em {formatDate(note.updatedAt)}
@@ -275,10 +284,13 @@ export function NotesPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
                 <select
                   value={topicId}
-                  onChange={(event) => setTopicId(event.target.value)}
+                  onChange={(event) => {
+                    setTopicId(event.target.value);
+                    setSubtopicId('');
+                  }}
                   className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
                   disabled={!subjectId}
                 >
@@ -290,6 +302,22 @@ export function NotesPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico (Opcional)</label>
+                <select
+                  value={subtopicId}
+                  onChange={(event) => setSubtopicId(event.target.value)}
+                  className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+                  disabled={!topicId}
+                >
+                  <option value="">Nenhum</option>
+                  {subtopicsForTopic.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <div className="mt-6">
@@ -297,11 +325,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Negrito"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive('bold')
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive('bold')
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().toggleBold().run()}
                 >
                   <Bold size={16} />
@@ -309,11 +336,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Itálico"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive('italic')
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive('italic')
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().toggleItalic().run()}
                 >
                   <Italic size={16} />
@@ -321,11 +347,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Sublinhado"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive('underline')
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive('underline')
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().toggleUnderline().run()}
                 >
                   <UnderlineIcon size={16} />
@@ -333,11 +358,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Lista"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive('bulletList')
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive('bulletList')
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().toggleBulletList().run()}
                 >
                   <List size={16} />
@@ -345,11 +369,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Lista numerada"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive('orderedList')
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive('orderedList')
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().toggleOrderedList().run()}
                 >
                   <ListOrdered size={16} />
@@ -357,11 +380,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Alinhar à esquerda"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive({ textAlign: 'left' })
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive({ textAlign: 'left' })
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().setTextAlign('left').run()}
                 >
                   <AlignLeft size={16} />
@@ -369,11 +391,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Centralizar"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive({ textAlign: 'center' })
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive({ textAlign: 'center' })
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().setTextAlign('center').run()}
                 >
                   <AlignCenter size={16} />
@@ -381,11 +402,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Alinhar à direita"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive({ textAlign: 'right' })
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive({ textAlign: 'right' })
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().setTextAlign('right').run()}
                 >
                   <AlignRight size={16} />
@@ -393,11 +413,10 @@ export function NotesPage() {
                 <button
                   type="button"
                   aria-label="Justificar"
-                  className={`p-2 rounded-md border transition-colors ${
-                    editor?.isActive({ textAlign: 'justify' })
-                      ? 'border-true-white text-true-white'
-                      : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                  }`}
+                  className={`p-2 rounded-md border transition-colors ${editor?.isActive({ textAlign: 'justify' })
+                    ? 'border-true-white text-true-white'
+                    : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                    }`}
                   onClick={() => editor?.chain().focus().setTextAlign('justify').run()}
                 >
                   <AlignJustify size={16} />
@@ -419,11 +438,10 @@ export function NotesPage() {
                         key={option.color}
                         type="button"
                         aria-label={`Marca-texto ${option.label}`}
-                        className={`p-1.5 rounded-md border transition-colors ${
-                          editor?.isActive('highlight', { color: option.color })
-                            ? 'border-true-white text-true-white'
-                            : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
-                        }`}
+                        className={`p-1.5 rounded-md border transition-colors ${editor?.isActive('highlight', { color: option.color })
+                          ? 'border-true-white text-true-white'
+                          : 'border-gray-800 text-gray-400 hover:text-true-white hover:border-gray-600'
+                          }`}
                         onMouseDown={(event) => event.preventDefault()}
                         onClick={() => applyHighlight(option.color)}
                       >
@@ -463,36 +481,50 @@ export function QuestionsPage() {
     questionHistory,
     subjects,
     topics,
+    subtopics,
     addQuestionHistory,
     deleteQuestionHistory,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
+  const [subtopicId, setSubtopicId] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [manualSubjectId, setManualSubjectId] = useState('');
   const [manualTopicId, setManualTopicId] = useState('');
+  const [manualSubtopicId, setManualSubtopicId] = useState('');
   const [manualCorrect, setManualCorrect] = useState('');
   const [manualWrong, setManualWrong] = useState('');
   const [manualBlank, setManualBlank] = useState('');
   const [manualNotes, setManualNotes] = useState('');
-  
+
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
 
   const topicsById = useMemo(() => new Map(topics.map((t) => [t.id, t])), [topics]);
   const subjectsById = useMemo(() => new Map(subjects.map((s) => [s.id, s])), [subjects]);
+  const subtopicsById = useMemo(() => new Map(subtopics.map((s) => [s.id, s])), [subtopics]);
 
   const topicsForFilter = useMemo(() => {
     if (!subjectId) return topics;
     return topics.filter((topic) => topic.subjectId === subjectId);
   }, [topics, subjectId]);
 
+  const subtopicsForFilter = useMemo(() => {
+    if (!topicId) return subtopics;
+    return subtopics.filter((st) => st.topicId === topicId);
+  }, [subtopics, topicId]);
+
   const manualTopicsForSubject = useMemo(() => {
     if (!manualSubjectId) return topics;
     return topics.filter((topic) => topic.subjectId === manualSubjectId);
   }, [topics, manualSubjectId]);
+
+  const manualSubtopicsForTopic = useMemo(() => {
+    if (!manualTopicId) return subtopics;
+    return subtopics.filter((st) => st.topicId === manualTopicId);
+  }, [subtopics, manualTopicId]);
 
   const filteredHistory = useMemo(() => {
     const fromDate = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null;
@@ -510,24 +542,28 @@ export function QuestionsPage() {
         }
 
         if (topicId && entry.topicId !== topicId) return false;
+        if (subtopicId && entry.subtopicId !== subtopicId) return false;
 
         return true;
       })
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [questionHistory, dateFrom, dateTo, subjectId, topicId, topicsById]);
+  }, [questionHistory, dateFrom, dateTo, subjectId, topicId, subtopicId, topicsById]);
 
   const aggregated = useMemo(() => {
-    const map = new Map<string, { topicId: string; correct: number; wrong: number; blank: number }>();
+    const map = new Map<string, { topicId: string; subtopicId: string | undefined; correct: number; wrong: number; blank: number }>();
 
     filteredHistory.forEach((entry) => {
-      const current = map.get(entry.topicId) || {
+      const key = `${entry.topicId}-${entry.subtopicId || 'none'}`;
+      const current = map.get(key) || {
         topicId: entry.topicId,
+        subtopicId: entry.subtopicId,
         correct: 0,
         wrong: 0,
         blank: 0,
       };
-      map.set(entry.topicId, {
+      map.set(key, {
         topicId: entry.topicId,
+        subtopicId: entry.subtopicId,
         correct: current.correct + entry.correctCount,
         wrong: current.wrong + entry.wrongCount,
         blank: current.blank + entry.blankCount,
@@ -539,15 +575,17 @@ export function QuestionsPage() {
       const rendimento = total === 0 ? 0 : Math.round((item.correct / total) * 100);
       const topic = topicsById.get(item.topicId);
       const subject = topic ? subjectsById.get(topic.subjectId) : null;
+      const subtopic = item.subtopicId ? subtopicsById.get(item.subtopicId) : null;
       return {
         ...item,
         total,
         rendimento,
-        topicName: topic?.name || 'Tema não encontrado',
+        topicName: topic?.name || 'Tópico não encontrado',
         subjectName: subject?.name || 'Matéria não encontrada',
+        subtopicName: subtopic?.name,
       };
     });
-  }, [filteredHistory, topicsById, subjectsById]);
+  }, [filteredHistory, topicsById, subjectsById, subtopicsById]);
 
   const handleManualAdd = async () => {
     if (!manualTopicId) return;
@@ -558,6 +596,7 @@ export function QuestionsPage() {
     await addQuestionHistory({
       id: generateId(),
       topicId: manualTopicId,
+      subtopicId: manualSubtopicId || undefined,
       correctCount,
       wrongCount,
       blankCount,
@@ -570,6 +609,7 @@ export function QuestionsPage() {
     setManualBlank('');
     setManualNotes('');
     setManualTopicId('');
+    setManualSubtopicId('');
   };
 
   const handleDeleteEntry = async (id: string) => {
@@ -582,7 +622,7 @@ export function QuestionsPage() {
     <div className="p-8">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Histórico de Questões</h1>
-        <p className="text-gray-400">Acompanhe acertos, erros e rendimento por tema</p>
+        <p className="text-gray-400">Acompanhe acertos, erros e rendimento por tópico</p>
       </div>
 
       <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
@@ -625,16 +665,34 @@ export function QuestionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
             <select
               value={topicId}
-              onChange={(event) => setTopicId(event.target.value)}
+              onChange={(event) => {
+                setTopicId(event.target.value);
+                setSubtopicId('');
+              }}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
             >
               <option value="">Todos</option>
               {topicsForFilter.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico</label>
+            <select
+              value={subtopicId}
+              onChange={(event) => setSubtopicId(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+            >
+              <option value="">Todos</option>
+              {subtopicsForFilter.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -664,10 +722,13 @@ export function QuestionsPage() {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tema</label>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
             <select
               value={manualTopicId}
-              onChange={(event) => setManualTopicId(event.target.value)}
+              onChange={(event) => {
+                setManualTopicId(event.target.value);
+                setManualSubtopicId('');
+              }}
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
               disabled={!manualSubjectId}
             >
@@ -675,6 +736,22 @@ export function QuestionsPage() {
               {manualTopicsForSubject.map((topic) => (
                 <option key={topic.id} value={topic.id}>
                   {topic.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico (Opcional)</label>
+            <select
+              value={manualSubtopicId}
+              onChange={(event) => setManualSubtopicId(event.target.value)}
+              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
+              disabled={!manualTopicId}
+            >
+              <option value="">Nenhum</option>
+              {manualSubtopicsForTopic.map((st) => (
+                <option key={st.id} value={st.id}>
+                  {st.name}
                 </option>
               ))}
             </select>
@@ -726,7 +803,7 @@ export function QuestionsPage() {
       </div>
 
       <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
-        <h2 className="text-lg font-bold mb-4">Resumo por tema</h2>
+        <h2 className="text-lg font-bold mb-4">Resumo por tópico</h2>
         {aggregated.length === 0 ? (
           <p className="text-sm text-gray-400">Nenhum registro encontrado.</p>
         ) : (
@@ -737,7 +814,7 @@ export function QuestionsPage() {
                 className="flex flex-col md:flex-row md:items-center md:justify-between p-4 bg-gray-800 rounded-lg"
               >
                 <div>
-                  <p className="font-medium">{item.topicName}</p>
+                  <p className="font-medium">{item.topicName} {item.subtopicName ? `· ${item.subtopicName}` : ''}</p>
                   <p className="text-sm text-gray-400">{item.subjectName}</p>
                   <p className="text-xs text-gray-500 mt-1">
                     Total: {item.total} · Certas: {item.correct} · Erradas: {item.wrong} · Brancas: {item.blank}
@@ -760,6 +837,7 @@ export function QuestionsPage() {
             {filteredHistory.slice(0, 6).map((entry) => {
               const topic = topicsById.get(entry.topicId);
               const subject = topic ? subjectsById.get(topic.subjectId) : null;
+              const subtopic = entry.subtopicId ? subtopicsById.get(entry.subtopicId) : null;
               const total = entry.correctCount + entry.wrongCount + entry.blankCount;
               const rendimento = total === 0 ? 0 : Math.round((entry.correctCount / total) * 100);
               return (
@@ -768,7 +846,7 @@ export function QuestionsPage() {
                   className="flex flex-col md:flex-row md:items-center md:justify-between p-4 bg-gray-800 rounded-lg"
                 >
                   <div className="flex-1">
-                    <p className="font-medium">{topic?.name || 'Tema não encontrado'}</p>
+                    <p className="font-medium">{topic?.name || 'Tópico não encontrado'} {subtopic ? `· ${subtopic.name}` : ''}</p>
                     <p className="text-sm text-gray-400">{subject?.name || 'Matéria não encontrada'}</p>
                     <p className="text-xs text-gray-500 mt-1">
                       {formatDate(entry.createdAt)} · Certas {entry.correctCount} · Erradas {entry.wrongCount} · Brancas {entry.blankCount}
@@ -802,7 +880,7 @@ export function QuestionsPage() {
 
 export function ReviewsPage() {
   const { loadAllData } = useStore();
-  
+
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
@@ -817,7 +895,7 @@ export function ReviewsPage() {
 
 export function StudySessionPage() {
   const { loadAllData } = useStore();
-  
+
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);

@@ -19,9 +19,19 @@ const TopicSchema = z.object({
   updatedAt: z.string(),
 });
 
+const SubtopicSchema = z.object({
+  id: z.string(),
+  topicId: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
 const NoteSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   title: z.string(),
   content: z.string(),
   createdAt: z.string(),
@@ -31,6 +41,7 @@ const NoteSchema = z.object({
 const MCQQuestionSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   type: z.literal('mcq'),
   prompt: z.string(),
   choices: z.array(z.string()),
@@ -43,6 +54,7 @@ const MCQQuestionSchema = z.object({
 const OpenQuestionSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   type: z.literal('open'),
   prompt: z.string(),
   sampleAnswer: z.string().optional(),
@@ -55,6 +67,7 @@ const QuestionSchema = z.union([MCQQuestionSchema, OpenQuestionSchema]);
 const StudySessionSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   activityType: z.enum(['lesson', 'questions', 'lesson_questions']),
   startedAt: z.string(),
   endedAt: z.string(),
@@ -68,6 +81,7 @@ const StudySessionSchema = z.object({
 const ReviewScheduleSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   originSessionId: z.string(),
   dueAt: z.string(),
   status: z.enum(['pending', 'completed', 'overdue']),
@@ -87,6 +101,7 @@ const ReviewAttemptSchema = z.object({
 const QuestionHistorySchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   sessionId: z.string().optional(),
   correctCount: z.number(),
   wrongCount: z.number(),
@@ -98,6 +113,7 @@ const QuestionHistorySchema = z.object({
 const ActivityPlanItemSchema = z.object({
   id: z.string(),
   topicId: z.string(),
+  subtopicId: z.string().optional(),
   title: z.string(),
   teacherName: z.string().optional(),
   materialType: z.enum(['lesson', 'questions', 'lesson_questions', 'pdf']),
@@ -126,6 +142,7 @@ const ExportDataSchema = z.object({
   data: z.object({
     subjects: z.array(SubjectSchema),
     topics: z.array(TopicSchema),
+    subtopics: z.array(SubtopicSchema),
     notes: z.array(NoteSchema),
     questions: z.array(QuestionSchema),
     studySessions: z.array(StudySessionSchema),
@@ -144,6 +161,7 @@ export async function exportData(): Promise<ExportData> {
   const [
     subjects,
     topics,
+    subtopics,
     notes,
     questions,
     studySessions,
@@ -155,6 +173,7 @@ export async function exportData(): Promise<ExportData> {
   ] = await Promise.all([
     storage.getAll('subjects'),
     storage.getAll('topics'),
+    storage.getAll('subtopics'),
     storage.getAll('notes'),
     storage.getAll('questions'),
     storage.getAll('studySessions'),
@@ -174,6 +193,7 @@ export async function exportData(): Promise<ExportData> {
     data: {
       subjects,
       topics,
+      subtopics,
       notes,
       questions,
       studySessions,
@@ -235,6 +255,7 @@ export async function importDataReplace(data: ExportData): Promise<void> {
   await Promise.all([
     ...data.data.subjects.map((item) => storage.add('subjects', item)),
     ...data.data.topics.map((item) => storage.add('topics', item)),
+    ...data.data.subtopics.map((item) => storage.add('subtopics', item)),
     ...data.data.notes.map((item) => storage.add('notes', item)),
     ...data.data.questions.map((item) => storage.add('questions', item)),
     ...data.data.studySessions.map((item) => storage.add('studySessions', item)),
@@ -255,6 +276,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
   const [
     existingSubjects,
     existingTopics,
+    existingSubtopics,
     existingNotes,
     existingQuestions,
     existingSessions,
@@ -265,6 +287,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
   ] = await Promise.all([
     storage.getAll('subjects'),
     storage.getAll('topics'),
+    storage.getAll('subtopics'),
     storage.getAll('notes'),
     storage.getAll('questions'),
     storage.getAll('studySessions'),
@@ -282,7 +305,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
   ) => {
     for (const item of newItems) {
       const existingItem = existing.find((e) => e.id === item.id);
-      
+
       if (!existingItem) {
         // New item, add it
         await storage.add(storeName, item as any);
@@ -299,6 +322,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
   await Promise.all([
     mergeItems('subjects', data.data.subjects, existingSubjects),
     mergeItems('topics', data.data.topics, existingTopics),
+    mergeItems('subtopics', data.data.subtopics, existingSubtopics),
     mergeItems('notes', data.data.notes, existingNotes),
     mergeItems('questions', data.data.questions, existingQuestions),
     mergeItems('studySessions', data.data.studySessions as any, existingSessions),
@@ -320,6 +344,7 @@ export async function importDataMerge(data: ExportData): Promise<void> {
 export function getImportSummary(data: ExportData): {
   subjects: number;
   topics: number;
+  subtopics: number;
   notes: number;
   questions: number;
   studySessions: number;
@@ -331,6 +356,7 @@ export function getImportSummary(data: ExportData): {
   return {
     subjects: data.data.subjects.length,
     topics: data.data.topics.length,
+    subtopics: data.data.subtopics.length,
     notes: data.data.notes.length,
     questions: data.data.questions.length,
     studySessions: data.data.studySessions.length,

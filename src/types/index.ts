@@ -23,9 +23,19 @@ export interface Topic {
   updatedAt: string;
 }
 
+export interface Subtopic {
+  id: string;
+  topicId: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Note {
   id: string;
   topicId: string;
+  subtopicId?: string;
   title: string;
   content: string;
   createdAt: string;
@@ -37,6 +47,7 @@ export type QuestionType = 'mcq' | 'open';
 export interface MCQQuestion {
   id: string;
   topicId: string;
+  subtopicId?: string;
   type: 'mcq';
   prompt: string;
   choices: string[];
@@ -49,6 +60,7 @@ export interface MCQQuestion {
 export interface OpenQuestion {
   id: string;
   topicId: string;
+  subtopicId?: string;
   type: 'open';
   prompt: string;
   sampleAnswer?: string;
@@ -68,6 +80,7 @@ export type ActivityPlanStatus = 'pending' | 'completed';
 export interface ActivityPlanItem {
   id: string;
   topicId: string;
+  subtopicId?: string;
   title: string;
   teacherName?: string;
   materialType: ActivityPlanMaterialType;
@@ -81,6 +94,7 @@ export interface ActivityPlanItem {
 export interface StudySession {
   id: string;
   topicId: string;
+  subtopicId?: string;
   activityType: ActivityType;
   startedAt: string;
   endedAt: string;
@@ -94,6 +108,7 @@ export type ReviewStatus = 'pending' | 'completed' | 'overdue';
 export interface ReviewSchedule {
   id: string;
   topicId: string;
+  subtopicId?: string;
   originSessionId: string;
   dueAt: string;
   status: ReviewStatus;
@@ -113,6 +128,7 @@ export interface ReviewAttempt {
 export interface QuestionHistoryEntry {
   id: string;
   topicId: string;
+  subtopicId?: string;
   sessionId?: string;
   correctCount: number;
   wrongCount: number;
@@ -140,6 +156,7 @@ export interface ExportData {
   data: {
     subjects: Subject[];
     topics: Topic[];
+    subtopics: Subtopic[];
     notes: Note[];
     questions: Question[];
     studySessions: StudySession[];
