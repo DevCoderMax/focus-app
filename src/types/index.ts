@@ -2,6 +2,7 @@
 export interface Subject {
   id: string;
   name: string;
+  order?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +19,7 @@ export interface Topic {
   id: string;
   subjectId: string;
   name: string;
+  order?: number;
   description?: string;
   createdAt: string;
   updatedAt: string;
@@ -27,6 +29,7 @@ export interface Subtopic {
   id: string;
   topicId: string;
   name: string;
+  order?: number;
   description?: string;
   createdAt: string;
   updatedAt: string;

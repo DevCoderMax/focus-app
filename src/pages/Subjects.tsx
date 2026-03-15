@@ -2,10 +2,61 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, X } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, X, GripVertical } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
 import type { Subject, Topic, Subtopic } from '@/types';
 import { getAllFromProfile } from '@/data/storage';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
+// Sortable Item Component
+interface SortableItemProps {
+  id: string;
+  className?: string;
+  children: (props: {
+    attributes: any;
+    listeners: any;
+  }) => React.ReactNode;
+}
+
+function SortableItem({ id, className, children }: SortableItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative' as const,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className={className}>
+      {children({ attributes, listeners })}
+    </div>
+  );
+}
 
 export function SubjectsPage() {
   const {
@@ -24,7 +75,50 @@ export function SubjectsPage() {
     toggleTopicCompletion,
     toggleSubtopicCompletion,
     getSubjectProgress,
+    reorderSubjects,
+    reorderTopics,
+    reorderSubtopics,
   } = useStore();
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEndSubjects = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = subjects.findIndex((s) => s.id === active.id);
+      const newIndex = subjects.findIndex((s) => s.id === over.id);
+      reorderSubjects(arrayMove(subjects, oldIndex, newIndex));
+    }
+  };
+
+  const handleDragEndTopics = (subjectId: string, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const subjectTopics = topics.filter((t) => t.subjectId === subjectId);
+      const oldIndex = subjectTopics.findIndex((t) => t.id === active.id);
+      const newIndex = subjectTopics.findIndex((t) => t.id === over.id);
+      reorderTopics(arrayMove(subjectTopics, oldIndex, newIndex));
+    }
+  };
+
+  const handleDragEndSubtopics = (topicId: string, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const topicSubtopics = subtopics.filter((st) => st.topicId === topicId);
+      const oldIndex = topicSubtopics.findIndex((st) => st.id === active.id);
+      const newIndex = topicSubtopics.findIndex((st) => st.id === over.id);
+      reorderSubtopics(arrayMove(topicSubtopics, oldIndex, newIndex));
+    }
+  };
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isAddingTopic, setIsAddingTopic] = useState<string | null>(null);
   const [isAddingSubtopic, setIsAddingSubtopic] = useState<string | null>(null);
@@ -385,332 +479,397 @@ export function SubjectsPage() {
           </Button>
         </div>
       ) : (
-        <div className="space-y-6">
-          {subjects.map((subject) => {
-            const subjectTopics = getTopicsForSubject(subject.id);
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEndSubjects}
+        >
+          <SortableContext
+            items={subjects.map((s) => s.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="space-y-6">
+              {subjects.map((subject) => {
+                const subjectTopics = getTopicsForSubject(subject.id);
 
-            return (
-              <div
-                key={subject.id}
-                className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden"
-              >
-                {/* Subject Header */}
-                  <button
-                    type="button"
-                    className="w-full p-6 flex items-center justify-between border-b border-gray-800 text-left hover:bg-gray-850 transition-colors"
-                    onClick={() =>
-                      setCollapsedSubjects((prev) => ({
-                        ...prev,
-                        [subject.id]: !prev[subject.id],
-                      }))
-                    }
-                  >
-                    <div className="flex items-center gap-3 flex-1">
-                      <BookOpen size={24} />
-                      <button
-                        type="button"
-                        aria-label={
-                          collapsedSubjects[subject.id]
-                            ? 'Expandir tópicos'
-                            : 'Recolher tópicos'
-                        }
-                        className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setCollapsedSubjects((prev) => ({
-                            ...prev,
-                            [subject.id]: !prev[subject.id],
-                          }));
-                        }}
-                      >
-                        {collapsedSubjects[subject.id] ? (
-                          <ChevronRight size={18} />
-                        ) : (
-                          <ChevronDown size={18} />
-                        )}
-                      </button>
-                      <div className="flex-1">
-                        <h2 className="text-xl font-bold">{subject.name}</h2>
-                        <p className="text-sm text-gray-400">
-                          {subjectTopics.length} tópico(s)
-                        </p>
-                        {/* Subject Progress Bar */}
-                        <div className="mt-3">
-                          <div className="flex items-center justify-between text-xs mb-1">
-                            <span className="text-gray-400">Progresso</span>
-                            <span className="font-semibold text-true-white">
-                              {getSubjectProgress(subject.id).percentage}%
-                            </span>
-                          </div>
-                          <div className="relative h-2 rounded-sm bg-[#0d0d0d] border border-gray-800 overflow-hidden">
-                            <div
-                              className="h-full rounded-sm bg-[linear-gradient(180deg,#ffffff_0%,#d0d0d0_20%,#909090_50%,#505050_75%,#181818_100%)] transition-all duration-300"
-                              style={{ width: `${getSubjectProgress(subject.id).percentage}%` }}
-                            />
-                          </div>
-                          <div className="mt-1 text-[11px] text-gray-400">
-                            {getSubjectProgress(subject.id).completed}/{getSubjectProgress(subject.id).total} concluídos
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setIsAddingTopic(subject.id);
-                      }}
-                    >
-                      <Plus size={16} className="mr-1" />
-                      Tópico
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (confirm('Deletar esta matéria e todos os seus tópicos?')) {
-                          deleteSubject(subject.id);
-                        }
-                      }}
-                    >
-                      <Trash2 size={16} />
-                    </Button>
-                  </div>
-                </button>
-
-                {/* Add Topic Form */}
-                {isAddingTopic === subject.id && (
-                  <div className="p-6 bg-gray-800 border-b border-gray-700">
-                    <h4 className="font-bold mb-4">Novo Tópico</h4>
-                    <div className="space-y-3">
-                      <Input
-                        label="Nome do tópico"
-                        value={newTopicName}
-                        onChange={(e) => setNewTopicName(e.target.value)}
-                        placeholder="Ex: Equações do 2º grau"
-                        autoFocus
-                      />
-                      <Input
-                        label="Descrição (opcional)"
-                        value={newTopicDesc}
-                        onChange={(e) => setNewTopicDesc(e.target.value)}
-                        placeholder="Breve descrição do tópico"
-                      />
-                      <div className="flex gap-3">
-                        <Button size="sm" onClick={() => handleAddTopic(subject.id)}>
-                          Criar
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setIsAddingTopic(null);
-                            setNewTopicName('');
-                            setNewTopicDesc('');
-                          }}
-                        >
-                          Cancelar
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* Topics List */}
-                {subjectTopics.length > 0 && !collapsedSubjects[subject.id] && (
-                  <div className="p-6">
-                    <div className="mb-4">
-                      <Input
-                        label="Buscar tópico"
-                        value={topicSearch[subject.id] || ''}
-                        onChange={(event) =>
-                          setTopicSearch((prev) => ({
-                            ...prev,
-                            [subject.id]: event.target.value,
-                          }))
-                        }
-                        placeholder="Digite para filtrar tópicos"
-                      />
-                    </div>
-                    <div className="space-y-4">
-                      {getFilteredTopics(subject.id).map((topic) => {
-                        const topicSubtopics = getSubtopicsForTopic(topic.id);
-                        const isTopicCompleted = completedTopics.includes(topic.id);
-                        return (
-                          <div
-                            key={topic.id}
-                            className="bg-gray-800 rounded-lg overflow-hidden border border-gray-750"
+                return (
+                  <SortableItem key={subject.id} id={subject.id}>
+                    {({ attributes, listeners }) => (
+                      <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
+                        {/* Subject Header */}
+                        <div className="flex items-center border-b border-gray-800">
+                          <button
+                            {...attributes}
+                            {...listeners}
+                            className="p-4 text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+                            aria-label="Arrastar matéria"
                           >
-                            <div
-                              className="flex items-center justify-between p-4 hover:bg-gray-750 transition-colors cursor-pointer"
-                              onClick={() => setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }))}
-                            >
-                              <div className="flex items-center gap-3">
-                                {/* Topic Checkbox */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleTopicCompletion(topic.id);
-                                  }}
-                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
-                                    isTopicCompleted
-                                      ? 'bg-green-500 border-green-500 text-white'
-                                      : 'border-gray-500 hover:border-gray-400'
-                                  }`}
-                                >
-                                  {isTopicCompleted && <Check size={14} />}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }));
-                                  }}
-                                >
-                                  {collapsedTopics[topic.id] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                                </button>
-                                <div>
-                                  <p className={`font-medium ${isTopicCompleted ? 'line-through text-gray-500' : ''}`}>
-                                    {topic.name}
-                                  </p>
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    {topicSubtopics.length} subtópico(s) {topic.description ? `· ${topic.description}` : ''}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsAddingSubtopic(topic.id);
-                                    if (collapsedTopics[topic.id]) {
-                                      setCollapsedTopics(prev => ({ ...prev, [topic.id]: false }));
-                                    }
-                                  }}
-                                >
-                                  <Plus size={14} className="mr-1" />
-                                  Subtópico
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm('Deletar este tópico e todos os seus subtópicos?')) {
-                                      deleteTopic(topic.id);
-                                    }
-                                  }}
-                                >
-                                  <Trash2 size={16} />
-                                </Button>
-                              </div>
-                            </div>
-
-                            {/* Add Subtopic Form */}
-                            {isAddingSubtopic === topic.id && (
-                              <div className="p-4 bg-gray-750 border-t border-gray-700">
-                                <h5 className="font-semibold mb-3 text-sm">Novo Subtópico</h5>
-                                <div className="space-y-3">
-                                  <Input
-                                    label="Nome do subtópico"
-                                    value={newSubtopicName}
-                                    onChange={(e) => setNewSubtopicName(e.target.value)}
-                                    placeholder="Ex: Teoria de algo"
-                                    autoFocus
-                                  />
-                                  <Input
-                                    label="Descrição (opcional)"
-                                    value={newSubtopicDesc}
-                                    onChange={(e) => setNewSubtopicDesc(e.target.value)}
-                                    placeholder="Breve descrição"
-                                  />
-                                  <div className="flex gap-2">
-                                    <Button size="sm" onClick={() => handleAddSubtopic(topic.id)}>
-                                      Criar
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setIsAddingSubtopic(null);
-                                        setNewSubtopicName('');
-                                        setNewSubtopicDesc('');
-                                      }}
-                                    >
-                                      Cancelar
-                                    </Button>
+                            <GripVertical size={20} />
+                          </button>
+                          <button
+                            type="button"
+                            className="flex-1 p-6 pl-0 flex items-center justify-between text-left hover:bg-gray-850 transition-colors"
+                            onClick={() =>
+                              setCollapsedSubjects((prev) => ({
+                                ...prev,
+                                [subject.id]: !prev[subject.id],
+                              }))
+                            }
+                          >
+                            <div className="flex items-center gap-3 flex-1">
+                              <BookOpen size={24} />
+                              <button
+                                type="button"
+                                aria-label={
+                                  collapsedSubjects[subject.id]
+                                    ? 'Expandir tópicos'
+                                    : 'Recolher tópicos'
+                                }
+                                className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setCollapsedSubjects((prev) => ({
+                                    ...prev,
+                                    [subject.id]: !prev[subject.id],
+                                  }));
+                                }}
+                              >
+                                {collapsedSubjects[subject.id] ? (
+                                  <ChevronRight size={18} />
+                                ) : (
+                                  <ChevronDown size={18} />
+                                )}
+                              </button>
+                              <div className="flex-1">
+                                <h2 className="text-xl font-bold">{subject.name}</h2>
+                                <p className="text-sm text-gray-400">
+                                  {subjectTopics.length} tópico(s)
+                                </p>
+                                {/* Subject Progress Bar */}
+                                <div className="mt-3">
+                                  <div className="flex items-center justify-between text-xs mb-1">
+                                    <span className="text-gray-400">Progresso</span>
+                                    <span className="font-semibold text-true-white">
+                                      {getSubjectProgress(subject.id).percentage}%
+                                    </span>
+                                  </div>
+                                  <div className="relative h-2 rounded-sm bg-[#0d0d0d] border border-gray-800 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-sm bg-[linear-gradient(180deg,#ffffff_0%,#d0d0d0_20%,#909090_50%,#505050_75%,#181818_100%)] transition-all duration-300"
+                                      style={{ width: `${getSubjectProgress(subject.id).percentage}%` }}
+                                    />
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-gray-400">
+                                    {getSubjectProgress(subject.id).completed}/{getSubjectProgress(subject.id).total} concluídos
                                   </div>
                                 </div>
                               </div>
-                            )}
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setIsAddingTopic(subject.id);
+                                }}
+                              >
+                                <Plus size={16} className="mr-1" />
+                                Tópico
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (confirm('Deletar esta matéria e todos os seus tópicos?')) {
+                                    deleteSubject(subject.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 size={16} />
+                              </Button>
+                            </div>
+                          </button>
+                        </div>
 
-                            {/* Subtopics List */}
-                            {!collapsedTopics[topic.id] && topicSubtopics.length > 0 && (
-                              <div className="p-4 border-t border-gray-750 bg-gray-900/50 space-y-2">
-                                {topicSubtopics.map((subtopic) => {
-                                  const isSubtopicCompleted = completedSubtopics.includes(subtopic.id);
-                                  return (
-                                    <div
-                                      key={subtopic.id}
-                                      className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-750"
-                                    >
-                                      <div className="flex items-center gap-3">
-                                        {/* Subtopic Checkbox */}
-                                        <button
-                                          type="button"
-                                          onClick={() => toggleSubtopicCompletion(subtopic.id)}
-                                          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
-                                            isSubtopicCompleted
-                                              ? 'bg-green-500 border-green-500 text-white'
-                                              : 'border-gray-500 hover:border-gray-400'
-                                          }`}
-                                        >
-                                          {isSubtopicCompleted && <Check size={12} />}
-                                        </button>
-                                        <div>
-                                          <p className={`font-medium text-sm ${isSubtopicCompleted ? 'line-through text-gray-500' : ''}`}>
-                                            {subtopic.name}
-                                          </p>
-                                          {subtopic.description && (
-                                            <p className="text-xs text-gray-500 mt-1">
-                                              {subtopic.description}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => {
-                                          if (confirm('Deletar este subtópico?')) {
-                                            deleteSubtopic(subtopic.id);
-                                          }
-                                        }}
-                                      >
-                                        <Trash2 size={14} />
-                                      </Button>
-                                    </div>
-                                  );
-                                })}
+                        {/* Add Topic Form */}
+                        {isAddingTopic === subject.id && (
+                          <div className="p-6 bg-gray-800 border-b border-gray-700">
+                            <h4 className="font-bold mb-4">Novo Tópico</h4>
+                            <div className="space-y-3">
+                              <Input
+                                label="Nome do tópico"
+                                value={newTopicName}
+                                onChange={(e) => setNewTopicName(e.target.value)}
+                                placeholder="Ex: Equações do 2º grau"
+                                autoFocus
+                              />
+                              <Input
+                                label="Descrição (opcional)"
+                                value={newTopicDesc}
+                                onChange={(e) => setNewTopicDesc(e.target.value)}
+                                placeholder="Breve descrição do tópico"
+                              />
+                              <div className="flex gap-3">
+                                <Button size="sm" onClick={() => handleAddTopic(subject.id)}>
+                                  Criar
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setIsAddingTopic(null);
+                                    setNewTopicName('');
+                                    setNewTopicDesc('');
+                                  }}
+                                >
+                                  Cancelar
+                                </Button>
                               </div>
-                            )}
+                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                        )}
+
+                        {/* Topics List */}
+                        {subjectTopics.length > 0 && !collapsedSubjects[subject.id] && (
+                          <div className="p-6">
+                            <div className="mb-4">
+                              <Input
+                                label="Buscar tópico"
+                                value={topicSearch[subject.id] || ''}
+                                onChange={(event) =>
+                                  setTopicSearch((prev) => ({
+                                    ...prev,
+                                    [subject.id]: event.target.value,
+                                  }))
+                                }
+                                placeholder="Digite para filtrar tópicos"
+                              />
+                            </div>
+                            <div className="space-y-4">
+                              <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={(e) => handleDragEndTopics(subject.id, e)}
+                              >
+                                <SortableContext
+                                  items={getFilteredTopics(subject.id).map((t) => t.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {getFilteredTopics(subject.id).map((topic) => {
+                                    const topicSubtopics = getSubtopicsForTopic(topic.id);
+                                    const isTopicCompleted = completedTopics.includes(topic.id);
+                                    return (
+                                      <SortableItem key={topic.id} id={topic.id}>
+                                        {({ attributes, listeners }) => (
+                                          <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-750">
+                                            <div
+                                              className="flex items-center justify-between p-4 hover:bg-gray-750 transition-colors cursor-pointer"
+                                              onClick={() => setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }))}
+                                            >
+                                              <div className="flex items-center gap-3">
+                                                <button
+                                                  {...attributes}
+                                                  {...listeners}
+                                                  className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+                                                  onClick={(e) => e.stopPropagation()}
+                                                >
+                                                  <GripVertical size={16} />
+                                                </button>
+                                                {/* Topic Checkbox */}
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleTopicCompletion(topic.id);
+                                                  }}
+                                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                                    isTopicCompleted
+                                                      ? 'bg-green-500 border-green-500 text-white'
+                                                      : 'border-gray-500 hover:border-gray-400'
+                                                  }`}
+                                                >
+                                                  {isTopicCompleted && <Check size={14} />}
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }));
+                                                  }}
+                                                >
+                                                  {collapsedTopics[topic.id] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+                                                </button>
+                                                <div>
+                                                  <p className={`font-medium ${isTopicCompleted ? 'line-through text-gray-500' : ''}`}>
+                                                    {topic.name}
+                                                  </p>
+                                                  <p className="text-xs text-gray-400 mt-1">
+                                                    {topicSubtopics.length} subtópico(s) {topic.description ? `· ${topic.description}` : ''}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              <div className="flex gap-2">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setIsAddingSubtopic(topic.id);
+                                                    if (collapsedTopics[topic.id]) {
+                                                      setCollapsedTopics(prev => ({ ...prev, [topic.id]: false }));
+                                                    }
+                                                  }}
+                                                >
+                                                  <Plus size={14} className="mr-1" />
+                                                  Subtópico
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="sm"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (confirm('Deletar este tópico e todos os seus subtópicos?')) {
+                                                      deleteTopic(topic.id);
+                                                    }
+                                                  }}
+                                                >
+                                                  <Trash2 size={16} />
+                                                </Button>
+                                              </div>
+                                            </div>
+
+                                            {/* Add Subtopic Form */}
+                                            {isAddingSubtopic === topic.id && (
+                                              <div className="p-4 bg-gray-750 border-t border-gray-700">
+                                                <h5 className="font-semibold mb-3 text-sm">Novo Subtópico</h5>
+                                                <div className="space-y-3">
+                                                  <Input
+                                                    label="Nome do subtópico"
+                                                    value={newSubtopicName}
+                                                    onChange={(e) => setNewSubtopicName(e.target.value)}
+                                                    placeholder="Ex: Teoria de algo"
+                                                    autoFocus
+                                                  />
+                                                  <Input
+                                                    label="Descrição (opcional)"
+                                                    value={newSubtopicDesc}
+                                                    onChange={(e) => setNewSubtopicDesc(e.target.value)}
+                                                    placeholder="Breve descrição"
+                                                  />
+                                                  <div className="flex gap-2">
+                                                    <Button size="sm" onClick={() => handleAddSubtopic(topic.id)}>
+                                                      Criar
+                                                    </Button>
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      onClick={() => {
+                                                        setIsAddingSubtopic(null);
+                                                        setNewSubtopicName('');
+                                                        setNewSubtopicDesc('');
+                                                      }}
+                                                    >
+                                                      Cancelar
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* Subtopics List */}
+                                            {!collapsedTopics[topic.id] && topicSubtopics.length > 0 && (
+                                              <div className="p-4 border-t border-gray-750 bg-gray-900/50">
+                                                <DndContext
+                                                  sensors={sensors}
+                                                  collisionDetection={closestCenter}
+                                                  onDragEnd={(e) => handleDragEndSubtopics(topic.id, e)}
+                                                >
+                                                  <SortableContext
+                                                    items={topicSubtopics.map((st) => st.id)}
+                                                    strategy={verticalListSortingStrategy}
+                                                  >
+                                                    <div className="space-y-2">
+                                                      {topicSubtopics.map((subtopic) => {
+                                                        const isSubtopicCompleted = completedSubtopics.includes(subtopic.id);
+                                                        return (
+                                                          <SortableItem key={subtopic.id} id={subtopic.id}>
+                                                            {({ attributes, listeners }) => (
+                                                              <div
+                                                                className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-750"
+                                                              >
+                                                                <div className="flex items-center gap-3">
+                                                                  <button
+                                                                    {...attributes}
+                                                                    {...listeners}
+                                                                    className="text-gray-600 hover:text-gray-400 cursor-grab active:cursor-grabbing"
+                                                                  >
+                                                                    <GripVertical size={14} />
+                                                                  </button>
+                                                                  {/* Subtopic Checkbox */}
+                                                                  <button
+                                                                    type="button"
+                                                                    onClick={() => toggleSubtopicCompletion(subtopic.id)}
+                                                                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                                                                      isSubtopicCompleted
+                                                                        ? 'bg-green-500 border-green-500 text-white'
+                                                                        : 'border-gray-500 hover:border-gray-400'
+                                                                    }`}
+                                                                  >
+                                                                    {isSubtopicCompleted && <Check size={12} />}
+                                                                  </button>
+                                                                  <div>
+                                                                    <p className={`font-medium text-sm ${isSubtopicCompleted ? 'line-through text-gray-500' : ''}`}>
+                                                                      {subtopic.name}
+                                                                    </p>
+                                                                    {subtopic.description && (
+                                                                      <p className="text-xs text-gray-500 mt-1">
+                                                                        {subtopic.description}
+                                                                      </p>
+                                                                    )}
+                                                                  </div>
+                                                                </div>
+                                                                <Button
+                                                                  variant="ghost"
+                                                                  size="sm"
+                                                                  onClick={() => {
+                                                                    if (confirm('Deletar este subtópico?')) {
+                                                                      deleteSubtopic(subtopic.id);
+                                                                    }
+                                                                  }}
+                                                                >
+                                                                  <Trash2 size={14} />
+                                                                </Button>
+                                                              </div>
+                                                            )}
+                                                          </SortableItem>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </SortableContext>
+                                                </DndContext>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </SortableItem>
+                                    );
+                                  })}
+                                </SortableContext>
+                              </DndContext>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </SortableItem>
+                );
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {showImportModal && (

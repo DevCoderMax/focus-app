@@ -52,18 +52,21 @@ interface AppState {
   addSubject: (subject: Subject) => Promise<void>;
   updateSubject: (subject: Subject) => Promise<void>;
   deleteSubject: (id: string) => Promise<void>;
+  reorderSubjects: (subjects: Subject[]) => Promise<void>;
 
   // Topics
   addTopic: (topic: Topic) => Promise<void>;
   updateTopic: (topic: Topic) => Promise<void>;
   deleteTopic: (id: string) => Promise<void>;
   toggleTopicCompletion: (topicId: string) => void;
+  reorderTopics: (topics: Topic[]) => Promise<void>;
 
   // Subtopics
   addSubtopic: (subtopic: Subtopic) => Promise<void>;
   updateSubtopic: (subtopic: Subtopic) => Promise<void>;
   deleteSubtopic: (id: string) => Promise<void>;
   toggleSubtopicCompletion: (subtopicId: string) => void;
+  reorderSubtopics: (subtopics: Subtopic[]) => Promise<void>;
 
   // Progress calculations
   getSubjectProgress: (subjectId: string) => { completed: number; total: number; percentage: number };
@@ -196,9 +199,9 @@ export const useStore = create<AppState>((set, get) => ({
       }
 
       set({
-        subjects,
-        topics,
-        subtopics,
+        subjects: subjects.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        topics: topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+        subtopics: subtopics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
         notes,
         questions,
         studySessions,
@@ -219,14 +222,18 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Subjects
   addSubject: async (subject) => {
-    await storage.add('subjects', subject);
-    set({ subjects: [...get().subjects, subject] });
+    const currentSubjects = get().subjects;
+    const maxOrder = currentSubjects.reduce((max, s) => Math.max(max, s.order ?? 0), -1);
+    const newSubject = { ...subject, order: maxOrder + 1 };
+    await storage.add('subjects', newSubject);
+    set({ subjects: [...currentSubjects, newSubject] });
   },
 
   updateSubject: async (subject) => {
     await storage.put('subjects', subject);
     set({
-      subjects: get().subjects.map((s) => (s.id === subject.id ? subject : s)),
+      subjects: get().subjects.map((s) => (s.id === subject.id ? subject : s))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     });
   },
 
@@ -240,16 +247,26 @@ export const useStore = create<AppState>((set, get) => ({
     set({ subjects: get().subjects.filter((s) => s.id !== id) });
   },
 
+  reorderSubjects: async (newSubjects) => {
+    const subjectsWithOrder = newSubjects.map((s, index) => ({ ...s, order: index }));
+    await Promise.all(subjectsWithOrder.map(s => storage.put('subjects', s)));
+    set({ subjects: subjectsWithOrder });
+  },
+
   // Topics
   addTopic: async (topic) => {
-    await storage.add('topics', topic);
-    set({ topics: [...get().topics, topic] });
+    const currentTopics = get().topics.filter(t => t.subjectId === topic.subjectId);
+    const maxOrder = currentTopics.reduce((max, t) => Math.max(max, t.order ?? 0), -1);
+    const newTopic = { ...topic, order: maxOrder + 1 };
+    await storage.add('topics', newTopic);
+    set({ topics: [...get().topics, newTopic].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
   },
 
   updateTopic: async (topic) => {
     await storage.put('topics', topic);
     set({
-      topics: get().topics.map((t) => (t.id === topic.id ? topic : t)),
+      topics: get().topics.map((t) => (t.id === topic.id ? topic : t))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     });
   },
 
@@ -276,16 +293,36 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  reorderTopics: async (newTopics) => {
+    const topicsWithOrder = newTopics.map((t, index) => ({ ...t, order: index }));
+    // Update only the topics that were passed (usually for a specific subject)
+    await Promise.all(topicsWithOrder.map(t => storage.put('topics', t)));
+    
+    // Update state merging with topics from other subjects
+    const allTopics = get().topics;
+    const reorderedIds = new Set(newTopics.map(t => t.id));
+    const mergedTopics = [
+      ...allTopics.filter(t => !reorderedIds.has(t.id)),
+      ...topicsWithOrder
+    ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    set({ topics: mergedTopics });
+  },
+
   // Subtopics
   addSubtopic: async (subtopic) => {
-    await storage.add('subtopics', subtopic);
-    set({ subtopics: [...get().subtopics, subtopic] });
+    const currentSubtopics = get().subtopics.filter(st => st.topicId === subtopic.topicId);
+    const maxOrder = currentSubtopics.reduce((max, st) => Math.max(max, st.order ?? 0), -1);
+    const newSubtopic = { ...subtopic, order: maxOrder + 1 };
+    await storage.add('subtopics', newSubtopic);
+    set({ subtopics: [...get().subtopics, newSubtopic].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
   },
 
   updateSubtopic: async (subtopic) => {
     await storage.put('subtopics', subtopic);
     set({
-      subtopics: get().subtopics.map((t) => (t.id === subtopic.id ? subtopic : t)),
+      subtopics: get().subtopics.map((t) => (t.id === subtopic.id ? subtopic : t))
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     });
   },
 
@@ -298,6 +335,20 @@ export const useStore = create<AppState>((set, get) => ({
       subtopics: get().subtopics.filter((t) => t.id !== id),
       completedSubtopics,
     });
+  },
+
+  reorderSubtopics: async (newSubtopics) => {
+    const subtopicsWithOrder = newSubtopics.map((st, index) => ({ ...st, order: index }));
+    await Promise.all(subtopicsWithOrder.map(st => storage.put('subtopics', st)));
+    
+    const allSubtopics = get().subtopics;
+    const reorderedIds = new Set(newSubtopics.map(st => st.id));
+    const mergedSubtopics = [
+      ...allSubtopics.filter(st => !reorderedIds.has(st.id)),
+      ...subtopicsWithOrder
+    ].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    
+    set({ subtopics: mergedSubtopics });
   },
 
   toggleTopicCompletion: (topicId) => {

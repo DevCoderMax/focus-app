@@ -34,8 +34,8 @@ export function TimerPage() {
     markActivityPlanCompleted,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
-  const [topicId, setTopicId] = useState('');
-  const [subtopicId, setSubtopicId] = useState('');
+  const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
+  const [selectedSubtopicIds, setSelectedSubtopicIds] = useState<string[]>([]);
   const [activityType, setActivityType] = useState<ActivityType>('lesson');
   const [difficulty, setDifficulty] = useState<number | ''>('');
   const [mode] = useState<StudyMode>('pomodoro');
@@ -50,7 +50,7 @@ export function TimerPage() {
   const [questionWrong, setQuestionWrong] = useState('');
   const [questionBlank, setQuestionBlank] = useState('');
   const [questionNotes, setQuestionNotes] = useState('');
-  const [pendingSessionId, setPendingSessionId] = useState<string | null>(null);
+  const [pendingSessionIds, setPendingSessionIds] = useState<string[]>([]);
 
   useEffect(() => {
     loadAllData();
@@ -100,23 +100,23 @@ export function TimerPage() {
     return topics.filter((topic) => topic.subjectId === subjectId);
   }, [topics, subjectId]);
 
-  const subtopicsForTopic = useMemo(() => {
-    if (!topicId) return [];
-    return subtopics.filter((st) => st.topicId === topicId);
-  }, [subtopics, topicId]);
+  const subtopicsForSelectedTopics = useMemo(() => {
+    if (selectedTopicIds.length === 0) return [];
+    return subtopics.filter((st) => selectedTopicIds.includes(st.topicId));
+  }, [subtopics, selectedTopicIds]);
 
-  const pendingActivityItemsForTopic = useMemo(() => {
-    if (!topicId) return [];
+  const pendingActivityItemsForSelected = useMemo(() => {
+    if (selectedTopicIds.length === 0) return [];
     return activityPlanItems
       .filter((item) => {
-        if (item.topicId !== topicId) return false;
-        if (subtopicId && item.subtopicId !== subtopicId) return false;
+        if (!selectedTopicIds.includes(item.topicId)) return false;
+        if (selectedSubtopicIds.length > 0 && item.subtopicId && !selectedSubtopicIds.includes(item.subtopicId)) return false;
         return item.completedCount < item.targetCount;
       })
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [activityPlanItems, topicId, subtopicId]);
+  }, [activityPlanItems, selectedTopicIds, selectedSubtopicIds]);
 
-  const canStart = !!subjectId && !!topicId && !!activityType;
+  const canStart = !!subjectId && selectedTopicIds.length > 0 && !!activityType;
   const canFinish = isRunning || timerSeconds > 0;
 
   const handleStart = () => {
@@ -148,22 +148,48 @@ export function TimerPage() {
   const handleFinish = async () => {
     if (!canStart || !startedAt) return;
     const endedAt = new Date().toISOString();
-    const sessionId = generateId();
+    const sessionIds: string[] = [];
 
-    await addStudySession({
-      id: sessionId,
-      topicId,
-      subtopicId: subtopicId || undefined,
-      activityType,
-      startedAt,
-      endedAt,
-      durationSec: timerSeconds,
-      mode,
-      difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
-    });
+    // Se temos subtópicos selecionados, criamos sessões para eles
+    // Se não, criamos sessões para os tópicos selecionados
+    if (selectedSubtopicIds.length > 0) {
+      for (const subId of selectedSubtopicIds) {
+        const subtopic = subtopics.find(s => s.id === subId);
+        if (!subtopic) continue;
+        
+        const id = generateId();
+        sessionIds.push(id);
+        await addStudySession({
+          id,
+          topicId: subtopic.topicId,
+          subtopicId: subId,
+          activityType,
+          startedAt,
+          endedAt,
+          durationSec: timerSeconds,
+          mode,
+          difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
+        });
+      }
+    } else {
+      for (const tId of selectedTopicIds) {
+        const id = generateId();
+        sessionIds.push(id);
+        await addStudySession({
+          id,
+          topicId: tId,
+          activityType,
+          startedAt,
+          endedAt,
+          durationSec: timerSeconds,
+          mode,
+          difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
+        });
+      }
+    }
 
     if (activityType !== 'lesson') {
-      setPendingSessionId(sessionId);
+      setPendingSessionIds(sessionIds);
       setShowQuestionModal(true);
       return;
     }
@@ -176,25 +202,52 @@ export function TimerPage() {
     const wrongCount = Number(questionWrong) || 0;
     const blankCount = Number(questionBlank) || 0;
 
-    await addQuestionHistory({
-      id: generateId(),
-      topicId,
-      subtopicId: subtopicId || undefined,
-      sessionId: pendingSessionId || undefined,
-      correctCount,
-      wrongCount,
-      blankCount,
-      notes: questionNotes || undefined,
-      createdAt: new Date().toISOString(),
-    });
+    // Se houver várias sessões, dividimos o resultado entre elas?
+    // Ou repetimos o resultado para cada? Normalmente em estudos se repete o bloco.
+    // O pedido do usuário sugere que ele quer concluir vários de uma vez.
+    
+    for (let i = 0; i < pendingSessionIds.length; i++) {
+      const sessionId = pendingSessionIds[i];
+      const session = useStore.getState().studySessions.find(s => s.id === sessionId);
+      if (!session) continue;
+
+      await addQuestionHistory({
+        id: generateId(),
+        topicId: session.topicId,
+        subtopicId: session.subtopicId,
+        sessionId,
+        correctCount,
+        wrongCount,
+        blankCount,
+        notes: questionNotes || undefined,
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     setQuestionCorrect('');
     setQuestionWrong('');
     setQuestionBlank('');
     setQuestionNotes('');
-    setPendingSessionId(null);
+    setPendingSessionIds([]);
     setShowQuestionModal(false);
     handleReset();
+  };
+
+  const toggleTopic = (id: string) => {
+    setSelectedTopicIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+    // Ao remover um tópico, removemos seus subtópicos também
+    if (selectedTopicIds.includes(id)) {
+      const topicSubtopicIds = subtopics.filter(s => s.topicId === id).map(s => s.id);
+      setSelectedSubtopicIds(prev => prev.filter(sid => !topicSubtopicIds.includes(sid)));
+    }
+  };
+
+  const toggleSubtopic = (id: string) => {
+    setSelectedSubtopicIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
   };
 
   return (
@@ -216,7 +269,8 @@ export function TimerPage() {
                 value={subjectId}
                 onChange={(event) => {
                   setSubjectId(event.target.value);
-                  setTopicId('');
+                  setSelectedTopicIds([]);
+                  setSelectedSubtopicIds([]);
                 }}
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
               >
@@ -224,41 +278,6 @@ export function TimerPage() {
                 {subjects.map((subject) => (
                   <option key={subject.id} value={subject.id}>
                     {subject.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
-              <select
-                value={topicId}
-                onChange={(event) => {
-                  setTopicId(event.target.value);
-                  setSubtopicId('');
-                }}
-                className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-                disabled={!subjectId}
-              >
-                <option value="">Selecione</option>
-                {topicsForSubject.map((topic) => (
-                  <option key={topic.id} value={topic.id}>
-                    {topic.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico (Opcional)</label>
-              <select
-                value={subtopicId}
-                onChange={(event) => setSubtopicId(event.target.value)}
-                className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-                disabled={!topicId}
-              >
-                <option value="">Nenhum</option>
-                {subtopicsForTopic.map((st) => (
-                  <option key={st.id} value={st.id}>
-                    {st.name}
                   </option>
                 ))}
               </select>
@@ -276,6 +295,54 @@ export function TimerPage() {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Tópicos</label>
+              <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-3 max-h-48 overflow-y-auto">
+                {!subjectId ? (
+                  <p className="text-gray-500 text-sm">Selecione uma matéria primeiro</p>
+                ) : topicsForSubject.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Nenhum tópico cadastrado</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {topicsForSubject.map((topic) => (
+                      <label key={topic.id} className="flex items-center gap-3 p-2 hover:bg-gray-850 rounded cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedTopicIds.includes(topic.id)}
+                          onChange={() => toggleTopic(topic.id)}
+                          className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-true-white"
+                        />
+                        <span className="text-sm text-gray-300">{topic.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-300 mb-2">Subtópicos (Opcional)</label>
+              <div className="bg-[#0d0d0d] border border-gray-800 rounded-lg p-3 max-h-48 overflow-y-auto">
+                {selectedTopicIds.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Selecione pelo menos um tópico</p>
+                ) : subtopicsForSelectedTopics.length === 0 ? (
+                  <p className="text-gray-500 text-sm">Nenhum subtópico disponível para os tópicos selecionados</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {subtopicsForSelectedTopics.map((st) => (
+                      <label key={st.id} className="flex items-center gap-3 p-2 hover:bg-gray-850 rounded cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={selectedSubtopicIds.includes(st.id)}
+                          onChange={() => toggleSubtopic(st.id)}
+                          className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-true-white"
+                        />
+                        <span className="text-sm text-gray-300">{st.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Dificuldade (opcional)</label>
@@ -307,16 +374,16 @@ export function TimerPage() {
             </label>
           </div>
 
-          {topicId && (
+          {selectedTopicIds.length > 0 && (
             <div className="mt-6 rounded-lg border border-gray-800 bg-gray-950 p-4">
-              <h3 className="text-sm font-semibold text-gray-200 mb-3">Conteúdos pendentes do tópico</h3>
-              {pendingActivityItemsForTopic.length === 0 ? (
+              <h3 className="text-sm font-semibold text-gray-200 mb-3">Conteúdos pendentes selecionados</h3>
+              {pendingActivityItemsForSelected.length === 0 ? (
                 <p className="text-sm text-gray-400">
-                  Nenhum conteúdo pendente para este tópico. Você pode cadastrar em Aulas.
+                  Nenhum conteúdo pendente para os itens selecionados.
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {pendingActivityItemsForTopic.slice(0, 3).map((item) => {
+                  {pendingActivityItemsForSelected.slice(0, 5).map((item) => {
                     const done = Math.min(item.completedCount, item.targetCount);
                     const remaining = Math.max(0, item.targetCount - done);
                     return (
@@ -470,7 +537,7 @@ export function TimerPage() {
                 variant="ghost"
                 onClick={() => {
                   setShowQuestionModal(false);
-                  setPendingSessionId(null);
+                  setPendingSessionIds([]);
                   handleReset();
                 }}
               >
