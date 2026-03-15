@@ -32,6 +32,10 @@ interface AppState {
   profiles: Profile[];
   activeProfileId: string | null;
 
+  // Completion tracking
+  completedTopics: string[];
+  completedSubtopics: string[];
+
   // Timer
   timerSeconds: number;
   timerIsRunning: boolean;
@@ -53,11 +57,17 @@ interface AppState {
   addTopic: (topic: Topic) => Promise<void>;
   updateTopic: (topic: Topic) => Promise<void>;
   deleteTopic: (id: string) => Promise<void>;
+  toggleTopicCompletion: (topicId: string) => void;
 
   // Subtopics
   addSubtopic: (subtopic: Subtopic) => Promise<void>;
   updateSubtopic: (subtopic: Subtopic) => Promise<void>;
   deleteSubtopic: (id: string) => Promise<void>;
+  toggleSubtopicCompletion: (subtopicId: string) => void;
+
+  // Progress calculations
+  getSubjectProgress: (subjectId: string) => { completed: number; total: number; percentage: number };
+  getAllSubjectsProgress: () => { completed: number; total: number; percentage: number };
 
   // Notes
   addNote: (note: Note) => Promise<void>;
@@ -132,6 +142,8 @@ export const useStore = create<AppState>((set, get) => ({
   settings: null,
   profiles: [],
   activeProfileId: null,
+  completedTopics: [],
+  completedSubtopics: [],
   timerSeconds: 0,
   timerIsRunning: false,
   timerStartedAt: null,
@@ -171,6 +183,18 @@ export const useStore = create<AppState>((set, get) => ({
         storage.getSettings(),
       ]);
 
+      // Load completion tracking from localStorage
+      let completedTopics: string[] = [];
+      let completedSubtopics: string[] = [];
+      try {
+        const storedTopics = localStorage.getItem('focus.completedTopics');
+        const storedSubtopics = localStorage.getItem('focus.completedSubtopics');
+        if (storedTopics) completedTopics = JSON.parse(storedTopics);
+        if (storedSubtopics) completedSubtopics = JSON.parse(storedSubtopics);
+      } catch {
+        // Ignore localStorage errors
+      }
+
       set({
         subjects,
         topics,
@@ -183,6 +207,8 @@ export const useStore = create<AppState>((set, get) => ({
         questionHistory,
         activityPlanItems,
         settings,
+        completedTopics,
+        completedSubtopics,
         isLoading: false,
       });
     } catch (error) {
@@ -266,7 +292,101 @@ export const useStore = create<AppState>((set, get) => ({
   deleteSubtopic: async (id) => {
     await storage.remove('subtopics', id);
     // Future cascades depending on requirements (notes, questions linked to the subtopic)
-    set({ subtopics: get().subtopics.filter((t) => t.id !== id) });
+    const completedSubtopics = get().completedSubtopics.filter((sid) => sid !== id);
+    localStorage.setItem('focus.completedSubtopics', JSON.stringify(completedSubtopics));
+    set({
+      subtopics: get().subtopics.filter((t) => t.id !== id),
+      completedSubtopics,
+    });
+  },
+
+  toggleTopicCompletion: (topicId) => {
+    const { completedTopics, completedSubtopics, subtopics } = get();
+    const isCompleted = completedTopics.includes(topicId);
+    const newCompletedTopics = isCompleted
+      ? completedTopics.filter((id) => id !== topicId)
+      : [...completedTopics, topicId];
+    
+    // If unchecking a topic, also uncheck all its subtopics
+    let newCompletedSubtopics = [...completedSubtopics];
+    if (isCompleted) {
+      const topicSubtopics = subtopics.filter((st) => st.topicId === topicId);
+      newCompletedSubtopics = newCompletedSubtopics.filter(
+        (id) => !topicSubtopics.some((st) => st.id === id)
+      );
+    }
+    
+    localStorage.setItem('focus.completedTopics', JSON.stringify(newCompletedTopics));
+    localStorage.setItem('focus.completedSubtopics', JSON.stringify(newCompletedSubtopics));
+    set({ completedTopics: newCompletedTopics, completedSubtopics: newCompletedSubtopics });
+  },
+
+  toggleSubtopicCompletion: (subtopicId) => {
+    const { completedSubtopics, completedTopics, subtopics } = get();
+    const isCompleted = completedSubtopics.includes(subtopicId);
+    const newCompletedSubtopics = isCompleted
+      ? completedSubtopics.filter((id) => id !== subtopicId)
+      : [...completedSubtopics, subtopicId];
+    
+    // Find the topic this subtopic belongs to
+    const subtopic = subtopics.find((st) => st.id === subtopicId);
+    let newCompletedTopics = [...completedTopics];
+    
+    if (subtopic) {
+      const topicId = subtopic.topicId;
+      const topicSubtopics = subtopics.filter((st) => st.topicId === topicId);
+      const allSubtopicsCompleted = topicSubtopics.every((st) =>
+        newCompletedSubtopics.includes(st.id)
+      );
+      
+      if (allSubtopicsCompleted && topicSubtopics.length > 0) {
+        // Auto-complete the topic if all subtopics are completed
+        if (!newCompletedTopics.includes(topicId)) {
+          newCompletedTopics.push(topicId);
+        }
+      } else {
+        // Uncheck the topic if not all subtopics are completed
+        newCompletedTopics = newCompletedTopics.filter((id) => id !== topicId);
+      }
+    }
+    
+    localStorage.setItem('focus.completedSubtopics', JSON.stringify(newCompletedSubtopics));
+    localStorage.setItem('focus.completedTopics', JSON.stringify(newCompletedTopics));
+    set({ completedSubtopics: newCompletedSubtopics, completedTopics: newCompletedTopics });
+  },
+
+  getSubjectProgress: (subjectId) => {
+    const { topics, subtopics, completedTopics, completedSubtopics } = get();
+    
+    const subjectTopics = topics.filter((t) => t.subjectId === subjectId);
+    const subjectTopicIds = subjectTopics.map((t) => t.id);
+    const subjectSubtopics = subtopics.filter((st) => subjectTopicIds.includes(st.topicId));
+    
+    const total = subjectTopics.length + subjectSubtopics.length;
+    const completedTopicCount = subjectTopics.filter((t) => completedTopics.includes(t.id)).length;
+    const completedSubtopicCount = subjectSubtopics.filter((st) => completedSubtopics.includes(st.id)).length;
+    const completed = completedTopicCount + completedSubtopicCount;
+    
+    const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+    
+    return { completed, total, percentage };
+  },
+
+  getAllSubjectsProgress: () => {
+    const { subjects } = get();
+    
+    let totalCompleted = 0;
+    let totalItems = 0;
+    
+    subjects.forEach((subject) => {
+      const progress = get().getSubjectProgress(subject.id);
+      totalCompleted += progress.completed;
+      totalItems += progress.total;
+    });
+    
+    const percentage = totalItems === 0 ? 0 : Math.round((totalCompleted / totalItems) * 100);
+    
+    return { completed: totalCompleted, total: totalItems, percentage };
   },
 
   // Notes
@@ -419,19 +539,8 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   getActivityPlanProgress: () => {
-    const { activityPlanItems } = get();
-    const total = activityPlanItems.reduce((sum, item) => sum + Math.max(1, item.targetCount), 0);
-    const completed = activityPlanItems.reduce(
-      (sum, item) => sum + Math.min(Math.max(0, item.completedCount), Math.max(1, item.targetCount)),
-      0
-    );
-    const percentage = total === 0 ? 0 : Math.min(100, Math.round((completed / total) * 100));
-
-    return {
-      completed,
-      total,
-      percentage,
-    };
+    // Now returns progress based on topics and subtopics completion
+    return get().getAllSubjectsProgress();
   },
 
   // Settings

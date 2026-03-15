@@ -56,14 +56,6 @@ export function TimerPage() {
     loadAllData();
   }, [loadAllData]);
 
-  useEffect(() => {
-    if (!timerIsRunning) return;
-    const interval = setInterval(() => {
-      tickTimer();
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [timerIsRunning, tickTimer]);
 
   useEffect(() => {
     setIsRunning(timerIsRunning);

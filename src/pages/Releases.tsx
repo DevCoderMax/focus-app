@@ -2,6 +2,40 @@ import { Rocket, Star, Calendar, CheckCircle2 } from 'lucide-react';
 
 const RELEASES = [
     {
+        version: '1.3.0',
+        date: '15/03/2026',
+        title: 'Calendário de Estudos Semanal',
+        features: [
+            'Nova aba "Calendário" para organizar estudos semanais',
+            'Visualização semanal estilo Google Calendar com grade de horários',
+            'Criação de eventos de estudo com título, matéria e tópico',
+            'Seleção de cores personalizadas para cada evento',
+            'Navegação entre semanas com botões de anterior/próxima',
+            'Botão "Hoje" para voltar rapidamente à semana atual',
+            'Clique em evento para ver detalhes e opção de excluir',
+            'Eventos salvos localmente e persistidos entre sessões',
+            'Eventos agora esticam visualmente para ocupar o intervalo de horas completo',
+            'Sessões de estudo registradas aparecem no calendário',
+            'Exibição de horário de início, fim e duração das sessões de estudo',
+            'Opção de recorrência para eventos se repetirem toda semana',
+            'Eventos recorrentes aparecem em todas as semanas automaticamente',
+        ],
+    },
+    {
+        version: '1.2.0',
+        date: '15/03/2026',
+        title: 'Sistema de Progresso e Checklists',
+        features: [
+            'Removida a aba "Aulas" para simplificar a navegação',
+            'Adicionados checkboxes para marcar tópicos e subtópicos como concluídos',
+            'Barra de progresso individual para cada matéria mostrando conclusão de tópicos e subtópicos',
+            'Barra de progresso no cabeçalho agora considera o progresso de todas as matérias',
+            'Conclusão automática de tópico quando todos os subtópicos são marcados',
+            'Desmarcar um tópico também desmarca todos os seus subtópicos',
+            'Progresso salvo localmente e persistido entre sessões',
+        ],
+    },
+    {
         version: '1.1.0',
         date: '05/03/2026',
         title: 'Hierarquia de Subtópicos e Refatoração',

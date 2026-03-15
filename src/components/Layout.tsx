@@ -23,10 +23,10 @@ import { formatTime } from '@/utils/helpers';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
   { name: 'Matérias', href: '/subjects', icon: BookOpen },
-  { name: 'Aulas', href: '/aulas', icon: BookOpen },
   { name: 'Anotações', href: '/notes', icon: FileText },
   { name: 'Questões', href: '/questions', icon: HelpCircle },
   { name: 'Revisões', href: '/reviews', icon: Calendar },
+  { name: 'Calendário', href: '/calendar', icon: Calendar },
   { name: 'Sessões', href: '/study', icon: Clock },
   { name: 'Temporizador', href: '/timer', icon: Clock },
   { name: 'Novidades', href: '/releases', icon: Rocket },

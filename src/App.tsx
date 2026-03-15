@@ -8,8 +8,8 @@ import { NotesPage, QuestionsPage, ReviewsPage } from '@/pages/Placeholder';
 import { SessionsPage } from '@/pages/Sessions';
 import { TimerPage } from '@/pages/Timer';
 import { ProfilesPage } from '@/pages/Profiles';
-import { AulasPage } from '@/pages/Aulas';
 import { ReleasesPage } from '@/pages/Releases';
+import { CalendarPage } from '@/pages/Calendar';
 import { useStore } from '@/store';
 
 function App() {
@@ -67,12 +67,6 @@ function App() {
             }
           />
           <Route
-            path="/aulas"
-            element={
-              activeProfileId ? <AulasPage /> : <Navigate to="/profiles" replace />
-            }
-          />
-          <Route
             path="/settings"
             element={
               activeProfileId ? <SettingsPage /> : <Navigate to="/profiles" replace />
@@ -82,6 +76,12 @@ function App() {
             path="/releases"
             element={
               activeProfileId ? <ReleasesPage /> : <Navigate to="/profiles" replace />
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              activeProfileId ? <CalendarPage /> : <Navigate to="/profiles" replace />
             }
           />
         </Routes>

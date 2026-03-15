@@ -1,14 +1,30 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, X } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
 import type { Subject, Topic, Subtopic } from '@/types';
 import { getAllFromProfile } from '@/data/storage';
 
 export function SubjectsPage() {
-  const { subjects, topics, subtopics, addSubject, deleteSubject, addTopic, deleteTopic, addSubtopic, deleteSubtopic, loadAllData } = useStore();
+  const {
+    subjects,
+    topics,
+    subtopics,
+    addSubject,
+    deleteSubject,
+    addTopic,
+    deleteTopic,
+    addSubtopic,
+    deleteSubtopic,
+    loadAllData,
+    completedTopics,
+    completedSubtopics,
+    toggleTopicCompletion,
+    toggleSubtopicCompletion,
+    getSubjectProgress,
+  } = useStore();
   const [isAddingSubject, setIsAddingSubject] = useState(false);
   const [isAddingTopic, setIsAddingTopic] = useState<string | null>(null);
   const [isAddingSubtopic, setIsAddingSubtopic] = useState<string | null>(null);
@@ -28,11 +44,16 @@ export function SubjectsPage() {
     }
   });
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showPackageModal, setShowPackageModal] = useState(false);
   const [importProfiles, setImportProfiles] = useState<
     { id: string; name: string; subjects: Subject[]; topics: Topic[] }[]
   >([]);
   const [selectedImports, setSelectedImports] = useState<Record<string, boolean>>({});
   const [importSearch, setImportSearch] = useState('');
+  const [packageJson, setPackageJson] = useState('');
+  const [packageError, setPackageError] = useState('');
+  const [packageSuccess, setPackageSuccess] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadAllData();
@@ -206,6 +227,103 @@ export function SubjectsPage() {
     setShowImportModal(false);
   };
 
+  const handleImportPackage = async () => {
+    setPackageError('');
+    setPackageSuccess('');
+
+    if (!packageJson.trim()) {
+      setPackageError('Por favor, insira um JSON válido ou selecione um arquivo.');
+      return;
+    }
+
+    try {
+      const data = JSON.parse(packageJson);
+
+      if (!data.subjects || !Array.isArray(data.subjects)) {
+        setPackageError('JSON inválido. O formato esperado é: { "subjects": [...] }');
+        return;
+      }
+
+      let importedCount = 0;
+
+      for (const subjectData of data.subjects) {
+        if (!subjectData.name) continue;
+
+        const subjectId = generateId();
+        const newSubject: Subject = {
+          id: subjectId,
+          name: subjectData.name,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await addSubject(newSubject);
+        importedCount++;
+
+        if (subjectData.topics && Array.isArray(subjectData.topics)) {
+          for (const topicData of subjectData.topics) {
+            if (!topicData.name) continue;
+
+            const topicId = generateId();
+            const newTopic: Topic = {
+              id: topicId,
+              subjectId,
+              name: topicData.name,
+              description: topicData.description || undefined,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await addTopic(newTopic);
+            importedCount++;
+
+            if (topicData.subtopics && Array.isArray(topicData.subtopics)) {
+              for (const subtopicData of topicData.subtopics) {
+                if (!subtopicData.name) continue;
+
+                const newSubtopic: Subtopic = {
+                  id: generateId(),
+                  topicId,
+                  name: subtopicData.name,
+                  description: subtopicData.description || undefined,
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                };
+                await addSubtopic(newSubtopic);
+                importedCount++;
+              }
+            }
+          }
+        }
+      }
+
+      setPackageSuccess(`Importados ${importedCount} itens com sucesso!`);
+      setPackageJson('');
+      
+      setTimeout(() => {
+        setShowPackageModal(false);
+        setPackageSuccess('');
+      }, 2000);
+    } catch (error) {
+      setPackageError('Erro ao processar JSON. Verifique o formato e tente novamente.');
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      setPackageJson(content);
+      setPackageError('');
+      setPackageSuccess('');
+    };
+    reader.onerror = () => {
+      setPackageError('Erro ao ler o arquivo.');
+    };
+    reader.readAsText(file);
+  };
+
   return (
     <div className="p-8">
       {/* Header */}
@@ -215,6 +333,10 @@ export function SubjectsPage() {
           <p className="text-gray-400">Organize seus estudos por assunto</p>
         </div>
         <div className="flex gap-3">
+          <Button variant="secondary" onClick={() => setShowPackageModal(true)}>
+            <Upload size={20} className="mr-2" />
+            Importar Pacote
+          </Button>
           <Button variant="secondary" onClick={() => setShowImportModal(true)}>
             Importar de perfil
           </Button>
@@ -273,47 +395,65 @@ export function SubjectsPage() {
                 className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden"
               >
                 {/* Subject Header */}
-                <button
-                  type="button"
-                  className="w-full p-6 flex items-center justify-between border-b border-gray-800 text-left hover:bg-gray-850 transition-colors"
-                  onClick={() =>
-                    setCollapsedSubjects((prev) => ({
-                      ...prev,
-                      [subject.id]: !prev[subject.id],
-                    }))
-                  }
-                >
-                  <div className="flex items-center gap-3">
-                    <BookOpen size={24} />
-                    <button
-                      type="button"
-                      aria-label={
-                        collapsedSubjects[subject.id]
-                          ? 'Expandir tópicos'
-                          : 'Recolher tópicos'
-                      }
-                      className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setCollapsedSubjects((prev) => ({
-                          ...prev,
-                          [subject.id]: !prev[subject.id],
-                        }));
-                      }}
-                    >
-                      {collapsedSubjects[subject.id] ? (
-                        <ChevronRight size={18} />
-                      ) : (
-                        <ChevronDown size={18} />
-                      )}
-                    </button>
-                    <div>
-                      <h2 className="text-xl font-bold">{subject.name}</h2>
-                      <p className="text-sm text-gray-400">
-                        {subjectTopics.length} tópico(s)
-                      </p>
+                  <button
+                    type="button"
+                    className="w-full p-6 flex items-center justify-between border-b border-gray-800 text-left hover:bg-gray-850 transition-colors"
+                    onClick={() =>
+                      setCollapsedSubjects((prev) => ({
+                        ...prev,
+                        [subject.id]: !prev[subject.id],
+                      }))
+                    }
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <BookOpen size={24} />
+                      <button
+                        type="button"
+                        aria-label={
+                          collapsedSubjects[subject.id]
+                            ? 'Expandir tópicos'
+                            : 'Recolher tópicos'
+                        }
+                        className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setCollapsedSubjects((prev) => ({
+                            ...prev,
+                            [subject.id]: !prev[subject.id],
+                          }));
+                        }}
+                      >
+                        {collapsedSubjects[subject.id] ? (
+                          <ChevronRight size={18} />
+                        ) : (
+                          <ChevronDown size={18} />
+                        )}
+                      </button>
+                      <div className="flex-1">
+                        <h2 className="text-xl font-bold">{subject.name}</h2>
+                        <p className="text-sm text-gray-400">
+                          {subjectTopics.length} tópico(s)
+                        </p>
+                        {/* Subject Progress Bar */}
+                        <div className="mt-3">
+                          <div className="flex items-center justify-between text-xs mb-1">
+                            <span className="text-gray-400">Progresso</span>
+                            <span className="font-semibold text-true-white">
+                              {getSubjectProgress(subject.id).percentage}%
+                            </span>
+                          </div>
+                          <div className="relative h-2 rounded-sm bg-[#0d0d0d] border border-gray-800 overflow-hidden">
+                            <div
+                              className="h-full rounded-sm bg-[linear-gradient(180deg,#ffffff_0%,#d0d0d0_20%,#909090_50%,#505050_75%,#181818_100%)] transition-all duration-300"
+                              style={{ width: `${getSubjectProgress(subject.id).percentage}%` }}
+                            />
+                          </div>
+                          <div className="mt-1 text-[11px] text-gray-400">
+                            {getSubjectProgress(subject.id).completed}/{getSubjectProgress(subject.id).total} concluídos
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="ghost"
@@ -398,6 +538,7 @@ export function SubjectsPage() {
                     <div className="space-y-4">
                       {getFilteredTopics(subject.id).map((topic) => {
                         const topicSubtopics = getSubtopicsForTopic(topic.id);
+                        const isTopicCompleted = completedTopics.includes(topic.id);
                         return (
                           <div
                             key={topic.id}
@@ -408,6 +549,21 @@ export function SubjectsPage() {
                               onClick={() => setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }))}
                             >
                               <div className="flex items-center gap-3">
+                                {/* Topic Checkbox */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleTopicCompletion(topic.id);
+                                  }}
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                    isTopicCompleted
+                                      ? 'bg-green-500 border-green-500 text-white'
+                                      : 'border-gray-500 hover:border-gray-400'
+                                  }`}
+                                >
+                                  {isTopicCompleted && <Check size={14} />}
+                                </button>
                                 <button
                                   type="button"
                                   className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors"
@@ -419,7 +575,9 @@ export function SubjectsPage() {
                                   {collapsedTopics[topic.id] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
                                 </button>
                                 <div>
-                                  <p className="font-medium">{topic.name}</p>
+                                  <p className={`font-medium ${isTopicCompleted ? 'line-through text-gray-500' : ''}`}>
+                                    {topic.name}
+                                  </p>
                                   <p className="text-xs text-gray-400 mt-1">
                                     {topicSubtopics.length} subtópico(s) {topic.description ? `· ${topic.description}` : ''}
                                   </p>
@@ -496,32 +654,51 @@ export function SubjectsPage() {
                             {/* Subtopics List */}
                             {!collapsedTopics[topic.id] && topicSubtopics.length > 0 && (
                               <div className="p-4 border-t border-gray-750 bg-gray-900/50 space-y-2">
-                                {topicSubtopics.map((subtopic) => (
-                                  <div
-                                    key={subtopic.id}
-                                    className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-750"
-                                  >
-                                    <div>
-                                      <p className="font-medium text-sm">{subtopic.name}</p>
-                                      {subtopic.description && (
-                                        <p className="text-xs text-gray-500 mt-1">
-                                          {subtopic.description}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        if (confirm('Deletar este subtópico?')) {
-                                          deleteSubtopic(subtopic.id);
-                                        }
-                                      }}
+                                {topicSubtopics.map((subtopic) => {
+                                  const isSubtopicCompleted = completedSubtopics.includes(subtopic.id);
+                                  return (
+                                    <div
+                                      key={subtopic.id}
+                                      className="flex items-center justify-between p-3 bg-gray-800 rounded-lg border border-gray-750"
                                     >
-                                      <Trash2 size={14} />
-                                    </Button>
-                                  </div>
-                                ))}
+                                      <div className="flex items-center gap-3">
+                                        {/* Subtopic Checkbox */}
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleSubtopicCompletion(subtopic.id)}
+                                          className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                                            isSubtopicCompleted
+                                              ? 'bg-green-500 border-green-500 text-white'
+                                              : 'border-gray-500 hover:border-gray-400'
+                                          }`}
+                                        >
+                                          {isSubtopicCompleted && <Check size={12} />}
+                                        </button>
+                                        <div>
+                                          <p className={`font-medium text-sm ${isSubtopicCompleted ? 'line-through text-gray-500' : ''}`}>
+                                            {subtopic.name}
+                                          </p>
+                                          {subtopic.description && (
+                                            <p className="text-xs text-gray-500 mt-1">
+                                              {subtopic.description}
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                          if (confirm('Deletar este subtópico?')) {
+                                            deleteSubtopic(subtopic.id);
+                                          }
+                                        }}
+                                      >
+                                        <Trash2 size={14} />
+                                      </Button>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -610,6 +787,111 @@ export function SubjectsPage() {
               >
                 Importar selecionados
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Package Modal */}
+      {showPackageModal && (
+        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <FileJson size={24} />
+                Importar Pacote
+              </h2>
+              <Button variant="ghost" size="sm" onClick={() => {
+                setShowPackageModal(false);
+                setPackageJson('');
+                setPackageError('');
+                setPackageSuccess('');
+              }}>
+                <X size={20} />
+              </Button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Upload de arquivo JSON
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                <Button
+                  variant="secondary"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full"
+                >
+                  <Upload size={16} className="mr-2" />
+                  Selecionar arquivo .json
+                </Button>
+              </div>
+
+              <div className="text-center text-gray-500 text-sm">ou</div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Cole o JSON abaixo
+                </label>
+                <textarea
+                  value={packageJson}
+                  onChange={(e) => {
+                    setPackageJson(e.target.value);
+                    setPackageError('');
+                    setPackageSuccess('');
+                  }}
+                  placeholder={`{
+  "subjects": [
+    {
+      "name": "Matemática",
+      "topics": [
+        {
+          "name": "Álgebra",
+          "description": "Estudo de equações",
+          "subtopics": [
+            { "name": "Equações do 2º grau" }
+          ]
+        }
+      ]
+    }
+  ]
+}`}
+                  className="w-full h-48 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-true-white font-mono text-sm resize-none"
+                />
+              </div>
+
+              {packageError && (
+                <div className="p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-400 text-sm">
+                  {packageError}
+                </div>
+              )}
+
+              {packageSuccess && (
+                <div className="p-3 bg-green-900/30 border border-green-800 rounded-lg text-green-400 text-sm">
+                  {packageSuccess}
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button onClick={handleImportPackage} className="flex-1">
+                  <Upload size={16} className="mr-2" />
+                  Importar
+                </Button>
+                <Button variant="ghost" onClick={() => {
+                  setShowPackageModal(false);
+                  setPackageJson('');
+                  setPackageError('');
+                  setPackageSuccess('');
+                }}>
+                  Cancelar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
