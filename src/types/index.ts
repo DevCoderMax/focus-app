@@ -5,6 +5,7 @@ export interface Subject {
   order?: number;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Profile {
@@ -13,6 +14,7 @@ export interface Profile {
   avatar?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Topic {
@@ -23,6 +25,7 @@ export interface Topic {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Subtopic {
@@ -33,6 +36,7 @@ export interface Subtopic {
   description?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Note {
@@ -43,6 +47,7 @@ export interface Note {
   content: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export type QuestionType = 'mcq' | 'open';
@@ -58,6 +63,7 @@ export interface MCQQuestion {
   explanation?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface OpenQuestion {
@@ -69,6 +75,7 @@ export interface OpenQuestion {
   sampleAnswer?: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export type Question = MCQQuestion | OpenQuestion;
@@ -92,6 +99,7 @@ export interface ActivityPlanItem {
   status: ActivityPlanStatus;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface StudySession {
@@ -104,6 +112,9 @@ export interface StudySession {
   durationSec: number;
   mode: StudyMode;
   difficulty?: 1 | 2 | 3 | 4 | 5;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export type ReviewStatus = 'pending' | 'completed' | 'overdue';
@@ -116,6 +127,8 @@ export interface ReviewSchedule {
   dueAt: string;
   status: ReviewStatus;
   createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface ReviewAttempt {
@@ -126,6 +139,9 @@ export interface ReviewAttempt {
   accuracy: number;
   durationSec: number;
   completedAt: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface QuestionHistoryEntry {
@@ -138,15 +154,20 @@ export interface QuestionHistoryEntry {
   blankCount: number;
   notes?: string;
   createdAt: string;
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 export interface Settings {
+  id: string;
   pomodoroMinutes: number;
   shortBreakMinutes: number;
   longBreakMinutes: number;
   dailyGoalMinutes: number;
   enableSounds: boolean;
   theme: 'dark' | 'light';
+  updatedAt: string;
+  deletedAt?: string;
 }
 
 // Export/Import

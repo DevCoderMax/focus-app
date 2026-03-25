@@ -506,9 +506,8 @@ export function SubjectsPage() {
                           >
                             <GripVertical size={20} />
                           </button>
-                          <button
-                            type="button"
-                            className="flex-1 p-6 pl-0 flex items-center justify-between text-left hover:bg-gray-850 transition-colors"
+                          <div
+                            className="flex-1 p-6 pl-0 flex items-center justify-between text-left hover:bg-gray-850 transition-colors cursor-pointer"
                             onClick={() =>
                               setCollapsedSubjects((prev) => ({
                                 ...prev,
@@ -518,28 +517,15 @@ export function SubjectsPage() {
                           >
                             <div className="flex items-center gap-3 flex-1">
                               <BookOpen size={24} />
-                              <button
-                                type="button"
-                                aria-label={
-                                  collapsedSubjects[subject.id]
-                                    ? 'Expandir tópicos'
-                                    : 'Recolher tópicos'
-                                }
+                              <div
                                 className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-800 transition-colors"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  setCollapsedSubjects((prev) => ({
-                                    ...prev,
-                                    [subject.id]: !prev[subject.id],
-                                  }));
-                                }}
                               >
                                 {collapsedSubjects[subject.id] ? (
                                   <ChevronRight size={18} />
                                 ) : (
                                   <ChevronDown size={18} />
                                 )}
-                              </button>
+                              </div>
                               <div className="flex-1">
                                 <h2 className="text-xl font-bold">{subject.name}</h2>
                                 <p className="text-sm text-gray-400">
@@ -590,7 +576,7 @@ export function SubjectsPage() {
                                 <Trash2 size={16} />
                               </Button>
                             </div>
-                          </button>
+                          </div>
                         </div>
 
                         {/* Add Topic Form */}
@@ -678,30 +664,28 @@ export function SubjectsPage() {
                                                   <GripVertical size={16} />
                                                 </button>
                                                 {/* Topic Checkbox */}
-                                                <button
-                                                  type="button"
+                                                <div
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     toggleTopicCompletion(topic.id);
                                                   }}
-                                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
                                                     isTopicCompleted
                                                       ? 'bg-green-500 border-green-500 text-white'
                                                       : 'border-gray-500 hover:border-gray-400'
                                                   }`}
                                                 >
                                                   {isTopicCompleted && <Check size={14} />}
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors"
+                                                </div>
+                                                <div
+                                                  className="p-1 rounded-md text-gray-500 hover:text-true-white hover:bg-gray-700 transition-colors cursor-pointer"
                                                   onClick={(e) => {
                                                     e.stopPropagation();
                                                     setCollapsedTopics(prev => ({ ...prev, [topic.id]: !prev[topic.id] }));
                                                   }}
                                                 >
                                                   {collapsedTopics[topic.id] ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-                                                </button>
+                                                </div>
                                                 <div>
                                                   <p className={`font-medium ${isTopicCompleted ? 'line-through text-gray-500' : ''}`}>
                                                     {topic.name}
@@ -809,17 +793,19 @@ export function SubjectsPage() {
                                                                     <GripVertical size={14} />
                                                                   </button>
                                                                   {/* Subtopic Checkbox */}
-                                                                  <button
-                                                                    type="button"
-                                                                    onClick={() => toggleSubtopicCompletion(subtopic.id)}
-                                                                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+                                                                  <div
+                                                                    onClick={(e) => {
+                                                                      e.stopPropagation();
+                                                                      toggleSubtopicCompletion(subtopic.id);
+                                                                    }}
+                                                                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
                                                                       isSubtopicCompleted
                                                                         ? 'bg-green-500 border-green-500 text-white'
                                                                         : 'border-gray-500 hover:border-gray-400'
                                                                     }`}
                                                                   >
                                                                     {isSubtopicCompleted && <Check size={12} />}
-                                                                  </button>
+                                                                  </div>
                                                                   <div>
                                                                     <p className={`font-medium text-sm ${isSubtopicCompleted ? 'line-through text-gray-500' : ''}`}>
                                                                       {subtopic.name}

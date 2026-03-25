@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -16,9 +16,13 @@ import {
   MoreHorizontal,
   Timer as TimerIcon,
   Rocket,
+  LogOut,
+  Users,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { formatTime } from '@/utils/helpers';
+import { AvatarSvg } from '@/components/AvatarSvg';
+import { logout } from '@/services/authService';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -43,6 +47,7 @@ type MobileNavItem =
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const {
     timerSeconds,
     timerIsRunning,
@@ -54,6 +59,13 @@ export function Layout({ children }: LayoutProps) {
     setActiveProfile,
     getActivityPlanProgress,
   } = useStore();
+
+  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -182,6 +194,36 @@ export function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
+        {/* Profile & Logout */}
+        <div className="p-4 border-t border-gray-800">
+          {activeProfile && (
+            <Link
+              to="/profiles"
+              className={`flex items-center gap-3 mb-3 p-2 rounded-lg hover:bg-gray-800 transition-colors ${isCollapsed ? 'justify-center' : ''
+                }`}
+            >
+              <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0">
+                <AvatarSvg avatarId={activeProfile.avatar} />
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{activeProfile.name}</p>
+                  <p className="text-xs text-gray-500">Trocar perfil</p>
+                </div>
+              )}
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors ${isCollapsed ? 'justify-center' : ''
+              }`}
+          >
+            <LogOut size={18} />
+            {!isCollapsed && <span className="text-sm font-medium">Sair</span>}
+          </button>
+        </div>
+
         {/* Footer */}
         <div className="p-4 border-t border-gray-800 text-xs text-gray-500">
           {isCollapsed ? (
@@ -198,7 +240,7 @@ export function Layout({ children }: LayoutProps) {
       {/* Main content */}
       <main className="flex-1 overflow-auto pb-mobile-nav md:pb-0">
         <div className="sticky top-0 z-40 bg-true-black border-b border-gray-800">
-          <div className="px-6 pt-4">
+          <div className="px-6 py-4">
             <div className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900/80 px-4 py-3">
               <div className="pointer-events-none absolute inset-0 opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[pulse_2.4s_ease-in-out_infinite]" />
               <div className="flex items-center justify-between gap-3 text-xs mb-2">
@@ -223,30 +265,6 @@ export function Layout({ children }: LayoutProps) {
               <div className="mt-1 text-[11px] text-gray-400 tracking-wide">
                 {activityPlanProgress.completed}/{activityPlanProgress.total} concluídos
               </div>
-            </div>
-          </div>
-          <div className="flex items-center justify-between px-6 py-4">
-            <div className="text-sm text-gray-400">FOCUS</div>
-            <div className="flex items-center gap-2">
-              {profiles.length > 0 && (
-                <select
-                  value={activeProfileId || ''}
-                  onChange={(event) => setActiveProfile(event.target.value)}
-                  className="px-3 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-                >
-                  <option value="" disabled>
-                    Selecionar perfil
-                  </option>
-                  {profiles.map((profile) => (
-                    <option key={profile.id} value={profile.id}>
-                      {profile.avatar ? `${profile.avatar} ` : ''}{profile.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <Link to="/profiles" className="text-xs text-gray-400 hover:text-true-white">
-                Gerenciar perfis
-              </Link>
             </div>
           </div>
         </div>

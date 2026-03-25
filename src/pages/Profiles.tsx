@@ -2,8 +2,22 @@ import { useEffect, useState } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { AvatarSvg } from '@/components/AvatarSvg';
 import type { Profile } from '@/types';
 import { useNavigate } from 'react-router-dom';
+import { Pencil, Trash2, Plus, X } from 'lucide-react';
+
+// Avatar options (IDs only - SVGs are in AvatarSvg component)
+const AVATAR_OPTIONS = [
+  { id: 'scholar', name: 'Estudioso' },
+  { id: 'ninja', name: 'Ninja' },
+  { id: 'wizard', name: 'Mago' },
+  { id: 'robot', name: 'Robô' },
+  { id: 'cat', name: 'Gato' },
+  { id: 'astronaut', name: 'Astronauta' },
+  { id: 'fox', name: 'Raposa' },
+  { id: 'panda', name: 'Panda' },
+];
 
 export function ProfilesPage() {
   const {
@@ -16,9 +30,11 @@ export function ProfilesPage() {
     deleteProfile,
   } = useStore();
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
+  const [isManaging, setIsManaging] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [profileName, setProfileName] = useState('');
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATAR_OPTIONS[0].id);
 
   useEffect(() => {
     loadProfiles();
@@ -27,133 +43,194 @@ export function ProfilesPage() {
   const handleSave = () => {
     if (!profileName.trim()) return;
     if (editingProfile) {
-      updateProfile({ ...editingProfile, name: profileName.trim() });
+      updateProfile({ ...editingProfile, name: profileName.trim(), avatar: selectedAvatar });
     } else {
-      createProfile(profileName.trim());
+      createProfile(profileName.trim(), selectedAvatar);
     }
-    setProfileName('');
-    setCreating(false);
+    closeModal();
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
     setEditingProfile(null);
+    setProfileName('');
+    setSelectedAvatar(AVATAR_OPTIONS[0].id);
+  };
+
+  const openEdit = (profile: Profile) => {
+    setEditingProfile(profile);
+    setProfileName(profile.name);
+    setSelectedAvatar(profile.avatar || AVATAR_OPTIONS[0].id);
+    setShowModal(true);
+  };
+
+  const openCreate = () => {
+    setEditingProfile(null);
+    setProfileName('');
+    setSelectedAvatar(AVATAR_OPTIONS[0].id);
+    setShowModal(true);
+  };
+
+  const handleSelectProfile = (profileId: string) => {
+    setActiveProfile(profileId);
+    navigate('/');
+  };
+
+  const handleDelete = () => {
+    if (editingProfile && confirm(`Excluir o perfil "${editingProfile.name}"?`)) {
+      deleteProfile(editingProfile.id);
+      closeModal();
+    }
   };
 
   return (
-    <div className="min-h-screen bg-true-black text-true-white flex flex-col items-center justify-center p-8">
-      <div className="max-w-4xl w-full">
-        <h1 className="text-3xl md:text-4xl font-bold text-center mb-10">Quem está estudando?</h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white flex flex-col items-center justify-center p-8">
+      {/* Background decoration */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+      </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+      <div className="relative z-10 max-w-5xl w-full">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-purple-400 via-pink-500 to-red-500 bg-clip-text text-transparent">
+            FOCUS
+          </h1>
+          <p className="text-2xl md:text-3xl text-gray-300 font-light">
+            {isManaging ? 'Gerenciar Perfis' : 'O que está estudando?'}
+          </p>
+        </div>
+
+        {/* Profiles Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
           {profiles.map((profile) => (
-            <button
-              key={profile.id}
-              type="button"
-              onClick={() => {
-                setActiveProfile(profile.id);
-                navigate('/');
-              }}
-              className={`flex flex-col items-center gap-3 p-4 rounded-xl border transition-colors ${
-                activeProfileId === profile.id
-                  ? 'border-true-white bg-gray-900'
-                  : 'border-gray-800 hover:border-gray-600'
-              }`}
-            >
-              <div className="w-20 h-20 rounded-xl bg-gray-800 flex items-center justify-center text-3xl">
-                {profile.avatar || '👤'}
-              </div>
-              <span className="text-sm font-medium">{profile.name}</span>
-            </button>
+            <div key={profile.id} className="relative group">
+              <button
+                type="button"
+                onClick={() => isManaging ? openEdit(profile) : handleSelectProfile(profile.id)}
+                className={`w-full flex flex-col items-center gap-4 p-6 rounded-2xl border-2 transition-all duration-300 transform hover:scale-105 ${
+                  activeProfileId === profile.id && !isManaging
+                    ? 'border-white bg-white/10 shadow-lg shadow-purple-500/20'
+                    : 'border-gray-700/50 bg-gray-800/30 hover:border-gray-500 hover:bg-gray-800/50'
+                }`}
+              >
+                <div className="w-28 h-28 rounded-2xl overflow-hidden bg-gray-800 shadow-xl group-hover:shadow-2xl transition-shadow relative">
+                  <AvatarSvg avatarId={profile.avatar} />
+                  {isManaging && (
+                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                      <Pencil className="text-white w-8 h-8" />
+                    </div>
+                  )}
+                </div>
+                <span className="text-lg font-semibold text-gray-200 group-hover:text-white transition-colors">
+                  {profile.name}
+                </span>
+              </button>
+            </div>
           ))}
+
+          {/* Add Profile Button */}
           <button
             type="button"
-            onClick={() => {
-              setCreating(true);
-              setEditingProfile(null);
-              setProfileName('');
-            }}
-            className="flex flex-col items-center gap-3 p-4 rounded-xl border border-dashed border-gray-700 text-gray-400 hover:text-true-white hover:border-gray-500"
+            onClick={openCreate}
+            className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-dashed border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 transition-all duration-300 transform hover:scale-105"
           >
-            <div className="w-20 h-20 rounded-xl bg-gray-900 flex items-center justify-center text-3xl">+</div>
-            <span className="text-sm">Adicionar perfil</span>
+            <div className="w-28 h-28 rounded-2xl bg-gray-800/50 flex items-center justify-center group-hover:bg-gray-700/50 transition-colors">
+              <Plus className="w-12 h-12" />
+            </div>
+            <span className="text-lg font-medium">Adicionar perfil</span>
           </button>
         </div>
 
-        <div className="text-center">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setCreating((prev) => !prev);
-              setEditingProfile(null);
-              setProfileName('');
-            }}
-          >
-            Gerenciar perfis
-          </Button>
-        </div>
-
-        {(creating || editingProfile) && (
-          <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-            <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-lg font-bold mb-4">
-                {editingProfile ? 'Editar perfil' : 'Novo perfil'}
-              </h2>
-              <Input
-                label="Nome"
-                value={profileName}
-                onChange={(event) => setProfileName(event.target.value)}
-                placeholder="Nome do perfil"
-              />
-              <div className="flex gap-3 mt-4">
-                <Button onClick={handleSave}>{editingProfile ? 'Salvar' : 'Criar'}</Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setCreating(false);
-                    setEditingProfile(null);
-                    setProfileName('');
-                  }}
-                >
-                  Cancelar
-                </Button>
-              </div>
-            </div>
+        {/* Manage Profiles Button */}
+        {profiles.length > 0 && (
+          <div className="text-center">
+            <Button
+              variant={isManaging ? "primary" : "secondary"}
+              onClick={() => setIsManaging(!isManaging)}
+              className="px-8 py-3 text-lg"
+            >
+              {isManaging ? 'Concluir' : 'Gerenciar perfis'}
+            </Button>
           </div>
         )}
 
-        {profiles.length > 0 && (
-          <div className="mt-10">
-            <h3 className="text-sm text-gray-500 mb-3">Editar / remover</h3>
-            <div className="space-y-2">
-              {profiles.map((profile) => (
-                <div
-                  key={profile.id}
-                  className="flex items-center justify-between p-3 bg-gray-900 border border-gray-800 rounded-lg"
-                >
-                  <span>{profile.name}</span>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setEditingProfile(profile);
-                        setProfileName(profile.name);
-                        setCreating(false);
-                      }}
+        {/* Create/Edit Modal */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-full max-w-lg shadow-2xl relative">
+              <button 
+                onClick={closeModal}
+                className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
+              >
+                <X size={24} />
+              </button>
+
+              <h2 className="text-2xl font-bold mb-6 text-center">
+                {editingProfile ? 'Editar perfil' : 'Criar novo perfil'}
+              </h2>
+
+              {/* Avatar Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-400 mb-3">
+                  Escolha seu avatar
+                </label>
+                <div className="grid grid-cols-4 gap-3">
+                  {AVATAR_OPTIONS.map((avatar) => (
+                    <button
+                      key={avatar.id}
+                      type="button"
+                      onClick={() => setSelectedAvatar(avatar.id)}
+                      className={`p-2 rounded-xl border-2 transition-all ${
+                        selectedAvatar === avatar.id
+                          ? 'border-purple-500 bg-purple-500/20'
+                          : 'border-gray-700 hover:border-gray-500'
+                      }`}
                     >
-                      Editar
-                    </Button>
+                      <div className="w-full aspect-square rounded-lg overflow-hidden">
+                        <AvatarSvg avatarId={avatar.id} />
+                      </div>
+                      <span className="text-xs text-gray-400 mt-1 block">{avatar.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Name Input */}
+              <Input
+                label="Nome do perfil"
+                value={profileName}
+                onChange={(event) => setProfileName(event.target.value)}
+                placeholder="Ex: João, Estudos, Concurso..."
+              />
+
+              {/* Actions */}
+              <div className="flex flex-col gap-3 mt-6">
+                <Button onClick={handleSave} className="w-full py-4 text-lg">
+                  {editingProfile ? 'Salvar Alterações' : 'Criar Perfil'}
+                </Button>
+                
+                <div className="flex gap-3">
+                  {editingProfile && (
                     <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        if (confirm('Excluir este perfil?')) {
-                          deleteProfile(profile.id);
-                        }
-                      }}
+                      variant="outline"
+                      onClick={handleDelete}
+                      className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
                     >
+                      <Trash2 size={18} className="mr-2" />
                       Excluir
                     </Button>
-                  </div>
+                  )}
+                  <Button
+                    variant="ghost"
+                    onClick={closeModal}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
                 </div>
-              ))}
+              </div>
             </div>
           </div>
         )}

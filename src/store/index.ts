@@ -15,6 +15,8 @@ import type {
 } from '@/types';
 import * as storage from '@/data/storage';
 import * as profileService from '@/services/profileService';
+import * as authService from '@/services/authService';
+import * as syncService from '@/services/syncService';
 
 interface AppState {
   // Data
@@ -116,7 +118,7 @@ interface AppState {
   // Profiles
   loadProfiles: () => void;
   setActiveProfile: (profileId: string) => void;
-  createProfile: (name: string) => void;
+  createProfile: (name: string, avatar?: string) => void;
   updateProfile: (profile: Profile) => void;
   deleteProfile: (profileId: string) => void;
 
@@ -153,12 +155,21 @@ export const useStore = create<AppState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  // Load all data from IndexedDB
+  // Load all data from IndexedDB (and sync if authenticated)
   loadAllData: async () => {
     set({ isLoading: true, error: null });
     try {
       await storage.initDB();
       await storage.initSettings();
+
+      // If authenticated, try to sync with server
+      if (authService.isAuthenticated() && syncService.isOnline()) {
+        try {
+          await syncService.pullFromServer();
+        } catch (error) {
+          console.warn('Sync failed, using local data:', error);
+        }
+      }
 
       const [
         subjects,
@@ -227,6 +238,11 @@ export const useStore = create<AppState>((set, get) => ({
     const newSubject = { ...subject, order: maxOrder + 1 };
     await storage.add('subjects', newSubject);
     set({ subjects: [...currentSubjects, newSubject] });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   updateSubject: async (subject) => {
@@ -235,6 +251,11 @@ export const useStore = create<AppState>((set, get) => ({
       subjects: get().subjects.map((s) => (s.id === subject.id ? subject : s))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   deleteSubject: async (id) => {
@@ -245,6 +266,11 @@ export const useStore = create<AppState>((set, get) => ({
       await get().deleteTopic(topic.id);
     }
     set({ subjects: get().subjects.filter((s) => s.id !== id) });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   reorderSubjects: async (newSubjects) => {
@@ -260,6 +286,11 @@ export const useStore = create<AppState>((set, get) => ({
     const newTopic = { ...topic, order: maxOrder + 1 };
     await storage.add('topics', newTopic);
     set({ topics: [...get().topics, newTopic].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   updateTopic: async (topic) => {
@@ -268,6 +299,11 @@ export const useStore = create<AppState>((set, get) => ({
       topics: get().topics.map((t) => (t.id === topic.id ? topic : t))
         .sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
     });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   deleteTopic: async (id) => {
@@ -291,6 +327,11 @@ export const useStore = create<AppState>((set, get) => ({
       notes: get().notes.filter((n) => n.topicId !== id),
       questions: get().questions.filter((q) => q.topicId !== id),
     });
+    
+    // Sync to server if online
+    if (authService.isAuthenticated() && syncService.isOnline()) {
+      syncService.pushToServer().catch(console.error);
+    }
   },
 
   reorderTopics: async (newTopics) => {
@@ -626,10 +667,32 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   // Profiles
-  loadProfiles: () => {
-    const profiles = profileService.getProfiles();
-    const activeProfileId = profileService.getActiveProfileId();
-    set({ profiles, activeProfileId });
+  loadProfiles: async () => {
+    const token = localStorage.getItem('focus.token');
+    if (!token) {
+      // Fallback to local profiles if not authenticated
+      const profiles = profileService.getProfiles();
+      const activeProfileId = profileService.getActiveProfileId();
+      set({ profiles, activeProfileId });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/profiles', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (response.ok) {
+        const profiles = await response.json();
+        const activeProfileId = profileService.getActiveProfileId();
+        set({ profiles, activeProfileId });
+      }
+    } catch (error) {
+      console.error('Error loading profiles:', error);
+      // Fallback to local
+      const profiles = profileService.getProfiles();
+      const activeProfileId = profileService.getActiveProfileId();
+      set({ profiles, activeProfileId });
+    }
   },
   setActiveProfile: (profileId) => {
     profileService.setActiveProfileId(profileId);
@@ -637,9 +700,37 @@ export const useStore = create<AppState>((set, get) => ({
     set({ activeProfileId: profileId });
     get().refreshData();
   },
-  createProfile: (name) => {
+  createProfile: async (name, avatar) => {
+    const token = localStorage.getItem('focus.token');
+    
+    if (token) {
+      try {
+        const response = await fetch('/api/profiles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name, avatarId: avatar }),
+        });
+        
+        if (response.ok) {
+          const newProfile = await response.json();
+          const profiles = [...get().profiles, newProfile];
+          profileService.setActiveProfileId(newProfile.id);
+          storage.setActiveProfile(newProfile.id);
+          set({ profiles, activeProfileId: newProfile.id });
+          get().refreshData();
+          return;
+        }
+      } catch (error) {
+        console.error('Error creating profile:', error);
+      }
+    }
+    
+    // Fallback to local
     const profiles = profileService.getProfiles();
-    const newProfile = profileService.createProfile(name);
+    const newProfile = profileService.createProfile(name, avatar);
     const updated = [...profiles, newProfile];
     profileService.saveProfiles(updated);
     profileService.setActiveProfileId(newProfile.id);
@@ -647,15 +738,53 @@ export const useStore = create<AppState>((set, get) => ({
     set({ profiles: updated, activeProfileId: newProfile.id });
     get().refreshData();
   },
-  updateProfile: (profile) => {
+  updateProfile: async (profile) => {
+    const token = localStorage.getItem('focus.token');
+    
+    if (token) {
+      try {
+        const response = await fetch('/api/profiles', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({ id: profile.id, name: profile.name, avatarId: profile.avatar }),
+        });
+        
+        if (response.ok) {
+          const updated = get().profiles.map((p) => (p.id === profile.id ? { ...p, ...profile } : p));
+          set({ profiles: updated });
+          return;
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
+      }
+    }
+    
+    // Fallback to local
     const profiles = profileService.getProfiles();
     const updatedProfile = profileService.updateProfile(profile);
     const updated = profiles.map((p) => (p.id === profile.id ? updatedProfile : p));
     profileService.saveProfiles(updated);
     set({ profiles: updated });
   },
-  deleteProfile: (profileId) => {
-    const profiles = profileService.getProfiles().filter((p) => p.id !== profileId);
+  deleteProfile: async (profileId) => {
+    const token = localStorage.getItem('focus.token');
+    
+    if (token) {
+      try {
+        await fetch(`/api/profiles?id=${profileId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+      } catch (error) {
+        console.error('Error deleting profile:', error);
+      }
+    }
+    
+    // Update local state
+    const profiles = get().profiles.filter((p) => p.id !== profileId);
     profileService.saveProfiles(profiles);
     const activeProfileId = profileService.getActiveProfileId();
     if (activeProfileId === profileId) {

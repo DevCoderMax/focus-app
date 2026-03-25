@@ -167,10 +167,26 @@ export async function getAll<T extends keyof FocusDB>(
   storeName: T
 ): Promise<FocusDB[T]['value'][]> {
   const db = await initDB();
-  return db.getAll(storeName);
+  const all = await db.getAll(storeName);
+  // Filter out soft-deleted items
+  return all.filter((item: any) => !item.deletedAt);
 }
 
 export async function getById<T extends keyof FocusDB>(
+  storeName: T,
+  id: string
+): Promise<FocusDB[T]['value'] | undefined> {
+  const db = await initDB();
+  const item = await db.get(storeName, id);
+  // Return undefined if item is soft-deleted
+  if (item && (item as any).deletedAt) return undefined;
+  return item;
+}
+
+/**
+ * Get item including soft-deleted ones (internal use for sync)
+ */
+export async function getRawById<T extends keyof FocusDB>(
   storeName: T,
   id: string
 ): Promise<FocusDB[T]['value'] | undefined> {
@@ -183,7 +199,13 @@ export async function add<T extends keyof FocusDB>(
   item: FocusDB[T]['value']
 ): Promise<string> {
   const db = await initDB();
-  return db.add(storeName, item as any) as Promise<string>;
+  const now = new Date().toISOString();
+  const itemWithTimestamps = {
+    ...item,
+    createdAt: (item as any).createdAt || now,
+    updatedAt: now,
+  };
+  return db.add(storeName, itemWithTimestamps as any) as Promise<string>;
 }
 
 export async function put<T extends keyof FocusDB>(
@@ -191,15 +213,93 @@ export async function put<T extends keyof FocusDB>(
   item: FocusDB[T]['value']
 ): Promise<string> {
   const db = await initDB();
-  return db.put(storeName, item as any) as Promise<string>;
+  const now = new Date().toISOString();
+  
+  // Check if we already have a soft-deleted version
+  const existing = await db.get(storeName, (item as any).id);
+  if (existing && (existing as any).deletedAt && !(item as any).deletedAt) {
+    // If we have a deleted version and the incoming one isn't marked as deleted,
+    // only update if the incoming one is genuinely newer than the deletion
+    if (new Date((item as any).updatedAt) <= new Date((existing as any).deletedAt)) {
+      return (item as any).id; // Skip update
+    }
+  }
+
+  const itemWithTimestamps = {
+    ...item,
+    createdAt: (item as any).createdAt || now,
+    updatedAt: (item as any).updatedAt || now,
+  };
+  return db.put(storeName, itemWithTimestamps as any) as Promise<string>;
 }
 
+/**
+ * Soft delete - sets deletedAt instead of removing from DB
+ */
 export async function remove<T extends keyof FocusDB>(
   storeName: T,
   id: string
 ): Promise<void> {
   const db = await initDB();
+  const item = await db.get(storeName, id);
+  if (item) {
+    const now = new Date().toISOString();
+    await db.put(storeName, {
+      ...item,
+      updatedAt: now,
+      deletedAt: now,
+    } as any);
+  }
+}
+
+/**
+ * Permanent delete - used after successful sync of a deletion
+ */
+export async function hardRemove<T extends keyof FocusDB>(
+  storeName: T,
+  id: string
+): Promise<void> {
+  const db = await initDB();
   return db.delete(storeName, id);
+}
+
+/**
+ * Get all data modified or deleted since last sync
+ */
+export async function getSyncData(lastSync: string | null): Promise<Partial<Record<keyof FocusDB, any[]>>> {
+  const db = await initDB();
+  const stores: (keyof FocusDB)[] = [
+    'subjects',
+    'topics',
+    'subtopics',
+    'notes',
+    'questions',
+    'studySessions',
+    'reviewSchedules',
+    'reviewAttempts',
+    'questionHistory',
+    'activityPlanItems',
+    'settings',
+  ];
+
+  const syncData: Partial<Record<keyof FocusDB, any[]>> = {};
+
+  for (const store of stores) {
+    const all = await db.getAll(store);
+    if (!lastSync) {
+      // If no last sync, send all data that is either new or marked as deleted
+      syncData[store] = all;
+    } else {
+      // Send items updated or deleted since last sync
+      syncData[store] = all.filter((item: any) => {
+        const updatedAt = new Date(item.updatedAt);
+        const lastSyncDate = new Date(lastSync);
+        return updatedAt > lastSyncDate;
+      });
+    }
+  }
+
+  return syncData;
 }
 
 export async function getByIndex<T extends keyof FocusDB>(
