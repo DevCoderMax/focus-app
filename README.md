@@ -1,42 +1,65 @@
 # FOCUS - Plataforma de Estudos Minimalista
 
-**FOCUS** é uma aplicação web offline-first para organização de estudos, revisões inteligentes e acompanhamento de progresso. Design minimalista em preto e branco, focado em eliminar distrações.
+**FOCUS** é uma plataforma local de organização de estudos, revisões, sessões, questões e acompanhamento de progresso. A versão open-source roda como **frontend React + API Python local**, salvando os dados em um banco SQLite no próprio ambiente do usuário.
 
-## 🎯 Características
+A proposta continua minimalista: interface em preto e branco, baixa distração e foco em estudo estruturado.
 
-- ✨ **Minimalismo extremo** - UI em preto e branco apenas
-- 📦 **Offline-first** - Todos os dados armazenados localmente (IndexedDB)
-- 🔄 **Revisões automáticas** - Sistema de espaçamento de 7 e 15 dias
-- 📊 **Analytics simples** - Acompanhe tempo, streak e desempenho
-- 💾 **Backup completo** - Exportação/importação via JSON
-- ⚡ **Performático** - React + TypeScript + Vite
+## Características
 
-## 🏗️ Arquitetura
+- **Interface minimalista** em preto, branco e tons de cinza.
+- **API local em Python/FastAPI** como fonte de verdade dos dados.
+- **SQLite local** criado automaticamente em `backend/data/focus-local.db`.
+- **Perfis locais** para separar dados de estudo por pessoa/contexto.
+- **CRUD de matérias, tópicos e subtópicos**.
+- **Importação de pacotes JSON** para criar estruturas de estudo rapidamente.
+- **Guia visual de pacote JSON** em `/package-guide`.
+- **Backup e restauração** por JSON.
+- **Temporizador e sessões de estudo**.
+- **Histórico de questões e progresso**.
+- **React + TypeScript + Vite + TailwindCSS** no frontend.
 
-```
+## O Que Esta Versão Não Inclui
+
+Esta versão open-source **não inclui**:
+
+- login/autenticação;
+- billing/pagamentos;
+- planos/entitlements;
+- sync cloud entre dispositivos;
+- backend Node/Express/Vercel Functions;
+- IndexedDB como banco principal.
+
+Essas partes foram removidas/separadas para manter o projeto open-source focado em uso local.
+
+## Arquitetura
+
+```txt
 focus-app/
+├── backend/                    # API local FastAPI
+│   ├── app/
+│   │   ├── core/               # Configuração e dependências locais
+│   │   ├── db/                 # Cliente SQLite local
+│   │   ├── routes/             # Rotas da API local
+│   │   │   └── local.py
+│   │   └── main.py
+│   ├── data/                   # Banco local ignorado pelo git
+│   ├── requirements.txt
+│   └── README.md
 ├── src/
-│   ├── components/       # Componentes reutilizáveis
-│   │   ├── Layout.tsx
-│   │   ├── Button.tsx
-│   │   └── Input.tsx
-│   ├── pages/           # Páginas principais
+│   ├── components/             # Componentes reutilizáveis
+│   ├── pages/                  # Páginas da aplicação
 │   │   ├── Dashboard.tsx
 │   │   ├── Subjects.tsx
+│   │   ├── PackageGuide.tsx
 │   │   ├── Settings.tsx
-│   │   └── Placeholder.tsx
-│   ├── data/            # Camada de dados
-│   │   ├── storage.ts   # IndexedDB wrapper
-│   │   └── mockData.ts  # Dados de exemplo
-│   ├── services/        # Lógica de negócio
-│   │   ├── schedulerService.ts
-│   │   └── importExportService.ts
-│   ├── store/           # Estado global (Zustand)
-│   │   └── index.ts
-│   ├── types/           # TypeScript types
-│   │   └── index.ts
-│   ├── utils/           # Utilitários
-│   │   └── helpers.ts
+│   │   └── ...
+│   ├── services/               # Clientes/API e regras de importação/exportação
+│   │   ├── apiService.ts
+│   │   ├── importExportService.ts
+│   │   └── schedulerService.ts
+│   ├── store/                  # Cache de UI/estado com Zustand
+│   ├── types/                  # Tipos TypeScript
+│   ├── utils/                  # Utilitários
 │   ├── App.tsx
 │   ├── main.tsx
 │   └── index.css
@@ -46,255 +69,325 @@ focus-app/
 └── tailwind.config.js
 ```
 
-## 🚀 Como Rodar
+## Como Rodar
 
 ### Pré-requisitos
 
-- Node.js 18+ 
-- npm ou yarn
+- Node.js 18+
+- npm
+- Python 3.12+ recomendado
 
 ### Instalação
 
-1. **Instalar dependências:**
 ```bash
 cd focus-app
 npm install
+python -m venv backend/.venv
+source backend/.venv/bin/activate
+pip install -r backend/requirements.txt
 ```
 
-2. **Iniciar servidor de desenvolvimento:**
+### Desenvolvimento
+
 ```bash
 npm run dev
 ```
 
-3. **Acessar aplicação:**
-Abra [http://localhost:5173](http://localhost:5173) no navegador
+Esse comando inicia:
 
-### Build para produção
+- frontend Vite em `http://localhost:5173`;
+- API FastAPI em `http://localhost:8000`.
 
-```bash
-npm run build
-npm run preview
+O Vite encaminha chamadas `/api` para a API local via proxy.
+
+### Banco Local
+
+Por padrão, o SQLite é criado em:
+
+```txt
+backend/data/focus-local.db
 ```
 
-## 📊 Modelos de Dados
+Esse diretório é ignorado pelo git.
 
-### Subject (Matéria)
-```typescript
+Para usar outro caminho:
+
+```bash
+FOCUS_DB_PATH=/caminho/para/focus-local.db npm run dev
+```
+
+## API Local
+
+A API local usa um usuário interno fixo (`local-user`) e não exige autenticação.
+
+Os dados são separados por perfil. O frontend envia o perfil ativo em todas as chamadas CRUD usando o header:
+
+```http
+X-Profile-Id: <id-do-perfil>
+```
+
+Se nenhum perfil for selecionado, a API cria/usa o perfil padrão `default`.
+
+### Rotas Principais
+
+- `GET /api/app-state`
+- `GET /api/profiles`
+- `POST /api/profiles`
+- `PUT /api/profiles/:id`
+- `DELETE /api/profiles/:id`
+- `GET /api/subjects`
+- `POST /api/subjects`
+- `PUT /api/subjects/:id`
+- `DELETE /api/subjects/:id`
+- `PUT /api/subjects/reorder`
+- `GET /api/topics`
+- `POST /api/topics`
+- `PUT /api/topics/:id`
+- `DELETE /api/topics/:id`
+- `GET /api/subtopics`
+- `POST /api/subtopics`
+- `PUT /api/subtopics/:id`
+- `DELETE /api/subtopics/:id`
+- `GET /api/settings`
+- `PUT /api/settings`
+- `PUT /api/completed-items/:itemType/:itemId`
+- `POST /api/data/import`
+
+Também existem rotas CRUD genéricas para notas, questões, sessões, revisões, histórico de questões e plano de atividades.
+
+## Importar Pacotes JSON
+
+Na página **Matérias**, clique em **Importar Pacote** para colar ou enviar um arquivo JSON.
+
+O modal possui um botão **Ver guia do JSON**, que abre a página:
+
+```txt
+/package-guide
+```
+
+Formato mínimo:
+
+```json
+{
+  "subjects": [
+    {
+      "name": "Direito Constitucional",
+      "topics": [
+        { "name": "Princípios fundamentais" },
+        { "name": "Direitos e garantias fundamentais" }
+      ]
+    }
+  ]
+}
+```
+
+Formato completo com subtópicos:
+
+```json
+{
+  "subjects": [
+    {
+      "name": "Matemática",
+      "topics": [
+        {
+          "name": "Álgebra",
+          "description": "Equações, expressões e funções algébricas.",
+          "subtopics": [
+            {
+              "name": "Equações do 2º grau",
+              "description": "Forma ax² + bx + c = 0, delta e raízes."
+            },
+            {
+              "name": "Produtos notáveis"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Regras principais:
+
+- o arquivo precisa ser JSON válido;
+- a raiz deve conter `subjects`;
+- cada matéria precisa ter `name`;
+- cada tópico precisa ter `name`;
+- `topics`, `subtopics` e `description` são opcionais conforme o nível.
+
+## Backup e Restauração
+
+Em **Configurações**, é possível exportar/importar backup completo.
+
+O backup inclui:
+
+- matérias;
+- tópicos;
+- subtópicos;
+- notas;
+- questões;
+- sessões de estudo;
+- revisões;
+- histórico de questões;
+- plano de atividades;
+- configurações.
+
+Modos de importação:
+
+1. **Substituir:** remove os dados do perfil ativo e importa apenas o arquivo.
+2. **Mesclar:** adiciona/atualiza os dados importados sem limpar tudo antes.
+
+## Modelos Principais
+
+### Subject
+
+```ts
 {
   id: string
   name: string
+  order?: number
   createdAt: string
   updatedAt: string
 }
 ```
 
-### Topic (Tema)
-```typescript
+### Topic
+
+```ts
 {
   id: string
   subjectId: string
   name: string
+  order?: number
   description?: string
   createdAt: string
   updatedAt: string
 }
 ```
 
-### Note (Anotação)
-```typescript
+### Subtopic
+
+```ts
 {
   id: string
   topicId: string
-  title: string
-  content: string (markdown)
+  name: string
+  order?: number
+  description?: string
   createdAt: string
   updatedAt: string
 }
 ```
 
-### Question (Questão)
-```typescript
-// MCQ (Múltipla escolha)
-{
-  id: string
-  topicId: string
-  type: 'mcq'
-  prompt: string
-  choices: string[]
-  answerIndex: number
-  explanation?: string
-}
+### StudySession
 
-// Open (Discursiva)
+```ts
 {
   id: string
   topicId: string
-  type: 'open'
-  prompt: string
-  sampleAnswer?: string
-}
-```
-
-### StudySession (Sessão de Estudo)
-```typescript
-{
-  id: string
-  topicId: string
+  subtopicId?: string
+  activityType: 'lesson' | 'questions' | 'lesson_questions'
   startedAt: string
   endedAt: string
   durationSec: number
   mode: 'pomodoro' | 'free' | 'countdown'
-  difficulty: 1 | 2 | 3 | 4 | 5
+  difficulty?: 1 | 2 | 3 | 4 | 5
+  createdAt: string
+  updatedAt: string
 }
 ```
 
-### ReviewSchedule (Revisão Agendada)
-```typescript
+### Settings
+
+```ts
 {
   id: string
-  topicId: string
-  originSessionId: string
-  dueAt: string
-  status: 'pending' | 'completed' | 'overdue'
-  createdAt: string
+  pomodoroMinutes: number
+  shortBreakMinutes: number
+  longBreakMinutes: number
+  dailyGoalMinutes: number
+  enableSounds: boolean
+  theme: 'dark' | 'light'
+  updatedAt: string
 }
 ```
 
-## 🎨 Design System
+## Design System
 
-### Paleta de Cores
+### Paleta
 
-- **Preto puro:** `#000000` (fundo)
-- **Branco puro:** `#FFFFFF` (texto e botões primários)
-- **Cinzas:** Apenas para contraste e hierarquia visual
-
-### Tipografia
-
-- **Sans-serif:** Space Grotesk (títulos e UI)
-- **Monospace:** JetBrains Mono (código e dados)
+- Preto puro: `#000000`
+- Branco puro: `#FFFFFF`
+- Cinzas para hierarquia visual
 
 ### Princípios
 
-1. **Zero distrações** - Nada de cores, animações desnecessárias
-2. **Contraste máximo** - Legibilidade perfeita
-3. **Espaçamento generoso** - Respiro visual
-4. **Transições suaves** - Microinterações discretas
+1. Zero distrações.
+2. Contraste alto.
+3. Espaçamento generoso.
+4. Microinterações discretas.
+5. Conteúdo primeiro.
 
-## 🔄 Sistema de Revisões
+## Stack Tecnológica
 
-### Criação Automática
-
-Ao finalizar uma sessão de estudo, o sistema automaticamente cria:
-- **Revisão 1:** 7 dias após a sessão
-- **Revisão 2:** 15 dias após a sessão
-
-### Lógica de Reforço
-
-Baseado no desempenho nas revisões:
-
-- **≥ 80% de acerto:** Revisão concluída ✓
-- **50-79% de acerto:** Nova revisão em +7 dias
-- **< 50% de acerto:** Reforços em +3 e +7 dias
-
-## 💾 Backup & Restauração
-
-### Exportar
-
-```javascript
-// Gera arquivo JSON com todos os dados
-{
-  meta: {
-    app: "FOCUS",
-    version: "1.0.0",
-    exportedAt: "2024-01-27T..."
-  },
-  data: {
-    subjects: [...],
-    topics: [...],
-    notes: [...],
-    questions: [...],
-    studySessions: [...],
-    reviewSchedules: [...],
-    reviewAttempts: [...],
-    settings: {...}
-  }
-}
-```
-
-### Importar
-
-Dois modos:
-
-1. **SUBSTITUIR:** Deleta tudo e importa apenas os dados do arquivo
-2. **MESCLAR:** 
-   - IDs novos → inserir
-   - IDs existentes → sobrescrever se `updatedAt` for mais recente
-
-## 🧪 Testes
-
-```bash
-# Rodar testes
-npm test
-
-# Testes com coverage
-npm test -- --coverage
-```
-
-## 📝 Status das Funcionalidades
-
-| Funcionalidade | Status |
-|---------------|--------|
-| ✅ Dashboard | Implementado |
-| ✅ CRUD Matérias/Temas | Implementado |
-| ✅ Exportar/Importar | Implementado |
-| ✅ Configurações | Implementado |
-| ⏳ Anotações | Em desenvolvimento |
-| ⏳ Banco de Questões | Em desenvolvimento |
-| ⏳ Sistema de Revisões | Em desenvolvimento |
-| ⏳ Sessão de Estudo | Em desenvolvimento |
-
-## 🛠️ Stack Tecnológica
-
-- **Framework:** React 18 + TypeScript
+- **Frontend:** React 18 + TypeScript
 - **Build:** Vite
 - **Roteamento:** React Router v6
 - **Estado:** Zustand
-- **Estilo:** TailwindCSS (monocromático)
-- **Banco:** IndexedDB (via idb)
+- **Estilo:** TailwindCSS
+- **Backend local:** FastAPI
+- **Banco:** SQLite local
 - **Validação:** Zod
 - **Gráficos:** Recharts
 - **Ícones:** Lucide React
-- **Testes:** Vitest + Testing Library
+- **Testes:** Vitest + Testing Library + jsdom
 
-## 📦 Scripts Disponíveis
+## Scripts Disponíveis
 
 ```bash
-npm run dev      # Desenvolvimento
-npm run build    # Build produção
+npm run dev      # Frontend Vite + API FastAPI local
+npm run build    # Build de produção do frontend
 npm run preview  # Preview do build
 npm test         # Rodar testes
 ```
 
-## 🎯 Próximos Passos
+## Testes
 
-1. **Completar funcionalidades pendentes:**
-   - Sistema completo de anotações com markdown
-   - Banco de questões com filtros
-   - Runner de revisões
-   - Sessão de estudo com timer
+```bash
+npm test
+npm test -- --coverage
+```
 
-2. **Melhorias futuras:**
-   - PWA (instalável)
-   - Modo "Deep Focus" (tela preta + timer)
-   - Flashcards estilo Anki
-   - Planner semanal
-   - Sync entre dispositivos (opcional)
+## Status Das Funcionalidades
 
-## 📄 Licença
+| Funcionalidade | Status |
+| --- | --- |
+| Dashboard | Implementado |
+| Perfis locais | Implementado |
+| CRUD Matérias/Tópicos/Subtópicos | Implementado |
+| Importar pacote JSON | Implementado |
+| Guia de pacote JSON | Implementado |
+| Exportar/Importar backup | Implementado |
+| Configurações | Implementado |
+| Temporizador/Sessões | Implementado |
+| Histórico de questões | Implementado |
+| Revisões | Em evolução |
+| Anotações e banco de questões | Em evolução |
 
-MIT License - Use à vontade!
+## Próximos Passos
 
-## 🤝 Contribuindo
+- Melhorar cobertura dos endpoints Python.
+- Evoluir anotações e banco de questões.
+- Refinar revisão espaçada e runner de revisões.
+- Avaliar empacotamento desktop/mobile no futuro.
+- Reintroduzir sync apenas quando houver arquitetura desktop/mobile apropriada.
+
+## Licença
+
+MIT License - use à vontade.
+
+## Contribuindo
 
 Pull requests são bem-vindos. Para mudanças grandes, abra uma issue primeiro.
 
