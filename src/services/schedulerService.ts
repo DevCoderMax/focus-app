@@ -1,5 +1,5 @@
 import type { ReviewSchedule, StudySession } from '@/types';
-import { add as addToDB, getByIndex } from '@/data/storage';
+import { createResource } from '@/services/apiService';
 import { generateId } from '@/utils/helpers';
 
 /**
@@ -10,16 +10,6 @@ import { generateId } from '@/utils/helpers';
 export async function createReviewSchedules(session: StudySession): Promise<void> {
   const now = new Date(session.endedAt);
   
-  // Check if reviews already exist for this session
-  const existing = await getByIndex('reviewSchedules', 'topicId', session.topicId);
-  const hasExistingForSession = existing.some(
-    (r) => r.originSessionId === session.id
-  );
-  
-  if (hasExistingForSession) {
-    return; // Avoid duplicates
-  }
-
   // Create 7-day review
   const review7: ReviewSchedule = {
     id: generateId(),
@@ -28,6 +18,7 @@ export async function createReviewSchedules(session: StudySession): Promise<void
     dueAt: addDays(now, 7).toISOString(),
     status: 'pending',
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
   // Create 15-day review
@@ -38,10 +29,11 @@ export async function createReviewSchedules(session: StudySession): Promise<void
     dueAt: addDays(now, 15).toISOString(),
     status: 'pending',
     createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
-  await addToDB('reviewSchedules', review7);
-  await addToDB('reviewSchedules', review15);
+  await createResource('review-schedules', review7);
+  await createResource('review-schedules', review15);
 }
 
 /**
@@ -70,8 +62,9 @@ export async function createReinforcementReviews(
       dueAt: addDays(now, 7).toISOString(),
       status: 'pending',
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     };
-    await addToDB('reviewSchedules', review);
+    await createResource('review-schedules', review);
   } else {
     // Poor performance: reviews in 3 and 7 days
     const review3: ReviewSchedule = {
@@ -81,6 +74,7 @@ export async function createReinforcementReviews(
       dueAt: addDays(now, 3).toISOString(),
       status: 'pending',
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     };
 
     const review7: ReviewSchedule = {
@@ -90,10 +84,11 @@ export async function createReinforcementReviews(
       dueAt: addDays(now, 7).toISOString(),
       status: 'pending',
       createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     };
 
-    await addToDB('reviewSchedules', review3);
-    await addToDB('reviewSchedules', review7);
+    await createResource('review-schedules', review3);
+    await createResource('review-schedules', review7);
   }
 }
 

@@ -28,9 +28,24 @@ dist-ssr
 .env.local
 .env.production
 
+# Local API data
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
 # Testing
 coverage
 .nyc_output
+
+# Python
+.venv/
+backend/.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
 
 # Build
 build

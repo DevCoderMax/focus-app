@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ExportData } from '@/types';
-import * as storage from '@/data/storage';
+import * as api from '@/services/apiService';
 
 // Zod schemas for validation
 const SubjectSchema = z.object({
@@ -76,6 +76,8 @@ const StudySessionSchema = z.object({
   difficulty: z
     .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)])
     .optional(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 const ReviewScheduleSchema = z.object({
@@ -86,6 +88,7 @@ const ReviewScheduleSchema = z.object({
   dueAt: z.string(),
   status: z.enum(['pending', 'completed', 'overdue']),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
 });
 
 const ReviewAttemptSchema = z.object({
@@ -96,6 +99,8 @@ const ReviewAttemptSchema = z.object({
   accuracy: z.number(),
   durationSec: z.number(),
   completedAt: z.string(),
+  createdAt: z.string().optional(),
+  updatedAt: z.string().optional(),
 });
 
 const QuestionHistorySchema = z.object({
@@ -108,6 +113,7 @@ const QuestionHistorySchema = z.object({
   blankCount: z.number(),
   notes: z.string().optional(),
   createdAt: z.string(),
+  updatedAt: z.string().optional(),
 });
 
 const ActivityPlanItemSchema = z.object({
@@ -158,31 +164,7 @@ const ExportDataSchema = z.object({
  * Export all data to JSON
  */
 export async function exportData(): Promise<ExportData> {
-  const [
-    subjects,
-    topics,
-    subtopics,
-    notes,
-    questions,
-    studySessions,
-    reviewSchedules,
-    reviewAttempts,
-    questionHistory,
-    activityPlanItems,
-    settings,
-  ] = await Promise.all([
-    storage.getAll('subjects'),
-    storage.getAll('topics'),
-    storage.getAll('subtopics'),
-    storage.getAll('notes'),
-    storage.getAll('questions'),
-    storage.getAll('studySessions'),
-    storage.getAll('reviewSchedules'),
-    storage.getAll('reviewAttempts'),
-    storage.getAll('questionHistory'),
-    storage.getAll('activityPlanItems'),
-    storage.getSettings(),
-  ]);
+  const state = await api.getAppState();
 
   return {
     meta: {
@@ -191,17 +173,17 @@ export async function exportData(): Promise<ExportData> {
       exportedAt: new Date().toISOString(),
     },
     data: {
-      subjects,
-      topics,
-      subtopics,
-      notes,
-      questions,
-      studySessions,
-      reviewSchedules,
-      reviewAttempts,
-      questionHistory,
-      activityPlanItems,
-      settings,
+      subjects: state.subjects,
+      topics: state.topics,
+      subtopics: state.subtopics,
+      notes: state.notes,
+      questions: state.questions,
+      studySessions: state.studySessions,
+      reviewSchedules: state.reviewSchedules,
+      reviewAttempts: state.reviewAttempts,
+      questionHistory: state.questionHistory,
+      activityPlanItems: state.activityPlanItems,
+      settings: state.settings,
     },
   };
 }
@@ -232,7 +214,7 @@ export function validateImport(json: unknown): {
 } {
   try {
     const data = ExportDataSchema.parse(json);
-    return { valid: true, data };
+    return { valid: true, data: data as ExportData };
   } catch (error) {
     if (error instanceof z.ZodError) {
       return {
@@ -248,94 +230,29 @@ export function validateImport(json: unknown): {
  * Import data - REPLACE mode
  */
 export async function importDataReplace(data: ExportData): Promise<void> {
-  // Clear all existing data
-  await storage.clearAll();
-
-  // Import new data
-  await Promise.all([
-    ...data.data.subjects.map((item) => storage.add('subjects', item)),
-    ...data.data.topics.map((item) => storage.add('topics', item)),
-    ...data.data.subtopics.map((item) => storage.add('subtopics', item)),
-    ...data.data.notes.map((item) => storage.add('notes', item)),
-    ...data.data.questions.map((item) => storage.add('questions', item)),
-    ...data.data.studySessions.map((item) => storage.add('studySessions', item)),
-    ...data.data.reviewSchedules.map((item) => storage.add('reviewSchedules', item)),
-    ...data.data.reviewAttempts.map((item) => storage.add('reviewAttempts', item)),
-    ...data.data.questionHistory.map((item) => storage.add('questionHistory', item)),
-    ...data.data.activityPlanItems.map((item) => storage.add('activityPlanItems', item)),
-  ]);
-
-  await storage.updateSettings(data.data.settings);
+  await api.importBackup('replace', data.data);
 }
 
 /**
  * Import data - MERGE mode
  */
 export async function importDataMerge(data: ExportData): Promise<void> {
-  // Get existing data
-  const [
-    existingSubjects,
-    existingTopics,
-    existingSubtopics,
-    existingNotes,
-    existingQuestions,
-    existingSessions,
-    existingSchedules,
-    existingAttempts,
-    existingHistory,
-    existingActivityPlanItems,
-  ] = await Promise.all([
-    storage.getAll('subjects'),
-    storage.getAll('topics'),
-    storage.getAll('subtopics'),
-    storage.getAll('notes'),
-    storage.getAll('questions'),
-    storage.getAll('studySessions'),
-    storage.getAll('reviewSchedules'),
-    storage.getAll('reviewAttempts'),
-    storage.getAll('questionHistory'),
-    storage.getAll('activityPlanItems'),
-  ]);
+  await api.importBackup('merge', data.data);
+}
 
-  // Helper to merge items
-  const mergeItems = async <T extends { id: string; updatedAt?: string }>(
-    storeName: keyof storage.FocusDB,
-    newItems: T[],
-    existing: T[]
-  ) => {
-    for (const item of newItems) {
-      const existingItem = existing.find((e) => e.id === item.id);
-
-      if (!existingItem) {
-        // New item, add it
-        await storage.add(storeName, item as any);
-      } else if (item.updatedAt && existingItem.updatedAt) {
-        // Item exists, check if imported is newer
-        if (new Date(item.updatedAt) > new Date(existingItem.updatedAt)) {
-          await storage.put(storeName, item as any);
-        }
-      }
-    }
-  };
-
-  // Merge all collections
-  await Promise.all([
-    mergeItems('subjects', data.data.subjects, existingSubjects),
-    mergeItems('topics', data.data.topics, existingTopics),
-    mergeItems('subtopics', data.data.subtopics, existingSubtopics),
-    mergeItems('notes', data.data.notes, existingNotes),
-    mergeItems('questions', data.data.questions, existingQuestions),
-    mergeItems('studySessions', data.data.studySessions as any, existingSessions),
-    mergeItems('reviewSchedules', data.data.reviewSchedules as any, existingSchedules),
-    mergeItems('reviewAttempts', data.data.reviewAttempts as any, existingAttempts),
-    mergeItems('questionHistory', data.data.questionHistory as any, existingHistory),
-    mergeItems('activityPlanItems', data.data.activityPlanItems as any, existingActivityPlanItems),
-  ]);
-
-  // Merge settings (always use imported if they exist)
-  if (data.data.settings) {
-    await storage.updateSettings(data.data.settings);
-  }
+export async function clearAllData(): Promise<void> {
+  await api.importBackup('replace', {
+    subjects: [],
+    topics: [],
+    subtopics: [],
+    notes: [],
+    questions: [],
+    studySessions: [],
+    reviewSchedules: [],
+    reviewAttempts: [],
+    questionHistory: [],
+    activityPlanItems: [],
+  });
 }
 
 /**

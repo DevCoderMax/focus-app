@@ -1,7 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useEffect } from 'react';
 import { Layout } from '@/components/Layout';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { RequireProfile } from '@/components/RequireProfile';
 import { DashboardPage } from '@/pages/Dashboard';
 import { SubjectsPage } from '@/pages/Subjects';
@@ -12,27 +11,19 @@ import { TimerPage } from '@/pages/Timer';
 import { ProfilesPage } from '@/pages/Profiles';
 import { ReleasesPage } from '@/pages/Releases';
 import { CalendarPage } from '@/pages/Calendar';
-import { LoginPage } from '@/pages/LoginPage';
-import { RegisterPage } from '@/pages/RegisterPage';
+import { PackageGuidePage } from '@/pages/PackageGuide';
 import { useStore } from '@/store';
 
 function App() {
-  const { activeProfileId, loadProfiles } = useStore();
+  const { loadProfiles } = useStore();
 
   useEffect(() => {
     loadProfiles();
   }, [loadProfiles]);
 
-  // Check if user is authenticated
-  const isAuthenticated = !!localStorage.getItem('focus.token');
-
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes - outside Layout (no sidebar) */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        
         {/* Profile selection - fullscreen (no sidebar) */}
         <Route path="/profiles" element={<ProfilesPage />} />
         
@@ -43,105 +34,93 @@ function App() {
             <Layout>
               <Routes>
                 
-                {/* Protected routes - require auth AND profile */}
+                {/* App routes require an active local profile */}
                 <Route
                   path="/"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <DashboardPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <DashboardPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/subjects"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <SubjectsPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <SubjectsPage />
+                    </RequireProfile>
+                  }
+                />
+                <Route
+                  path="/package-guide"
+                  element={
+                    <RequireProfile>
+                      <PackageGuidePage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/notes"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <NotesPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <NotesPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/questions"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <QuestionsPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <QuestionsPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/reviews"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <ReviewsPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <ReviewsPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/study"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <SessionsPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <SessionsPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/timer"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <TimerPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <TimerPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/settings"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <SettingsPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <SettingsPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/releases"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <ReleasesPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <ReleasesPage />
+                    </RequireProfile>
                   }
                 />
                 <Route
                   path="/calendar"
                   element={
-                    <ProtectedRoute>
-                      <RequireProfile>
-                        <CalendarPage />
-                      </RequireProfile>
-                    </ProtectedRoute>
+                    <RequireProfile>
+                      <CalendarPage />
+                    </RequireProfile>
                   }
                 />
               </Routes>

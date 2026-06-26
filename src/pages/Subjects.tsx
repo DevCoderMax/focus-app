@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, X, GripVertical } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
 import type { Subject, Topic, Subtopic } from '@/types';
-import { getAllFromProfile } from '@/data/storage';
+import { getAppStateForProfile } from '@/services/apiService';
 import {
   DndContext,
   closestCenter,
@@ -161,11 +162,8 @@ export function SubjectsPage() {
 
       const profilesWithData = await Promise.all(
         otherProfiles.map(async (profile) => {
-          const [subjects, topics] = await Promise.all([
-            getAllFromProfile(profile.id, 'subjects'),
-            getAllFromProfile(profile.id, 'topics'),
-          ]);
-          return { id: profile.id, name: profile.name, subjects, topics };
+          const state = await getAppStateForProfile(profile.id);
+          return { id: profile.id, name: profile.name, subjects: state.subjects, topics: state.topics };
         })
       );
 
@@ -427,7 +425,10 @@ export function SubjectsPage() {
           <p className="text-gray-400">Organize seus estudos por assunto</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={() => setShowPackageModal(true)}>
+          <Button
+            variant="secondary"
+            onClick={() => setShowPackageModal(true)}
+          >
             <Upload size={20} className="mr-2" />
             Importar Pacote
           </Button>
@@ -957,6 +958,24 @@ export function SubjectsPage() {
             </div>
             
             <div className="space-y-4">
+              <div className="rounded-xl border border-gray-800 bg-black/35 p-4">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold text-true-white">Não sabe como montar o JSON?</h3>
+                    <p className="text-sm text-gray-400 mt-1">
+                      Veja a estrutura esperada, campos aceitos e exemplos prontos para copiar.
+                    </p>
+                  </div>
+                  <Link
+                    to="/package-guide"
+                    onClick={() => setShowPackageModal(false)}
+                    className="inline-flex items-center justify-center font-medium transition-all duration-200 bg-gray-800 text-true-white hover:bg-gray-700 active:bg-gray-600 px-4 py-2 text-base rounded-lg whitespace-nowrap"
+                  >
+                    Ver guia do JSON
+                  </Link>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
                   Upload de arquivo JSON

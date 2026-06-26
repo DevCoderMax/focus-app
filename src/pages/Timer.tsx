@@ -28,7 +28,6 @@ export function TimerPage() {
     startTimer,
     pauseTimer,
     resetTimer,
-    tickTimer,
     addQuestionHistory,
     incrementActivityPlanProgress,
     markActivityPlanCompleted,
@@ -158,6 +157,7 @@ export function TimerPage() {
         if (!subtopic) continue;
         
         const id = generateId();
+        const now = new Date().toISOString();
         sessionIds.push(id);
         await addStudySession({
           id,
@@ -169,11 +169,14 @@ export function TimerPage() {
           durationSec: timerSeconds,
           mode,
           difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
+          createdAt: now,
+          updatedAt: now,
         });
       }
     } else {
       for (const tId of selectedTopicIds) {
         const id = generateId();
+        const now = new Date().toISOString();
         sessionIds.push(id);
         await addStudySession({
           id,
@@ -184,6 +187,8 @@ export function TimerPage() {
           durationSec: timerSeconds,
           mode,
           difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
+          createdAt: now,
+          updatedAt: now,
         });
       }
     }
@@ -210,6 +215,7 @@ export function TimerPage() {
       const sessionId = pendingSessionIds[i];
       const session = useStore.getState().studySessions.find(s => s.id === sessionId);
       if (!session) continue;
+      const now = new Date().toISOString();
 
       await addQuestionHistory({
         id: generateId(),
@@ -220,7 +226,8 @@ export function TimerPage() {
         wrongCount,
         blankCount,
         notes: questionNotes || undefined,
-        createdAt: new Date().toISOString(),
+        createdAt: now,
+        updatedAt: now,
       });
     }
 

@@ -214,7 +214,7 @@ export function ProfilesPage() {
                 <div className="flex gap-3">
                   {editingProfile && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       onClick={handleDelete}
                       className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
                     >

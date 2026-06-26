@@ -15,7 +15,7 @@ import {
   Timer
 } from 'lucide-react';
 import { generateId, formatTime } from '@/utils/helpers';
-import type { Subject, Topic, StudySession } from '@/types';
+import type { StudySession } from '@/types';
 
 interface CalendarEvent {
   id: string;
@@ -65,7 +65,7 @@ export function CalendarPage() {
   
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [, setSelectedHour] = useState<number | null>(null);
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventSubjectId, setNewEventSubjectId] = useState('');
   const [newEventTopicId, setNewEventTopicId] = useState('');

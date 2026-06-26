@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '@/store';
-import { clearAll } from '@/data/storage';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { Download, Upload, Trash2 } from 'lucide-react';
 import {
+  clearAllData,
   exportData,
   downloadExport,
   validateImport,
@@ -248,8 +248,7 @@ export function SettingsPage() {
               )
             ) {
               if (confirm('Tem certeza absoluta? Esta ação não pode ser desfeita!')) {
-                // Clear all data
-                clearAll()
+                clearAllData()
                   .then(refreshData)
                   .then(() => {
                     alert('Todos os dados foram deletados.');

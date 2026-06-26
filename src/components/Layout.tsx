@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
@@ -16,13 +16,10 @@ import {
   MoreHorizontal,
   Timer as TimerIcon,
   Rocket,
-  LogOut,
-  Users,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { formatTime } from '@/utils/helpers';
 import { AvatarSvg } from '@/components/AvatarSvg';
-import { logout } from '@/services/authService';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -47,7 +44,6 @@ type MobileNavItem =
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation();
-  const navigate = useNavigate();
   const {
     timerSeconds,
     timerIsRunning,
@@ -56,16 +52,11 @@ export function Layout({ children }: LayoutProps) {
     profiles,
     activeProfileId,
     loadProfiles,
-    setActiveProfile,
     getActivityPlanProgress,
   } = useStore();
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
@@ -213,15 +204,6 @@ export function Layout({ children }: LayoutProps) {
               )}
             </Link>
           )}
-          <button
-            type="button"
-            onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-4 py-2 rounded-lg text-gray-400 hover:text-red-400 hover:bg-gray-800 transition-colors ${isCollapsed ? 'justify-center' : ''
-              }`}
-          >
-            <LogOut size={18} />
-            {!isCollapsed && <span className="text-sm font-medium">Sair</span>}
-          </button>
         </div>
 
         {/* Footer */}

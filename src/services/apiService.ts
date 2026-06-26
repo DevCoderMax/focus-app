@@ -1,49 +1,88 @@
-import { getToken, clearAuth } from './authService';
+import type {
+  ActivityPlanItem,
+  Profile,
+  Question,
+  QuestionHistoryEntry,
+  ReviewAttempt,
+  ReviewSchedule,
+  Settings,
+  StudySession,
+  Subject,
+  Subtopic,
+  Topic,
+} from '@/types';
 
 const API_BASE = '/api';
+const ACTIVE_PROFILE_KEY = 'focus.activeProfile';
 
-/**
- * Get headers with auth token
- */
+export interface AppStateData {
+  subjects: Subject[];
+  topics: Topic[];
+  subtopics: Subtopic[];
+  notes: import('@/types').Note[];
+  questions: Question[];
+  studySessions: StudySession[];
+  reviewSchedules: ReviewSchedule[];
+  reviewAttempts: ReviewAttempt[];
+  questionHistory: QuestionHistoryEntry[];
+  activityPlanItems: ActivityPlanItem[];
+  settings: Settings;
+  profiles: Profile[];
+  activeProfileId: string;
+  completedTopics: string[];
+  completedSubtopics: string[];
+}
+
+export type ResourceName =
+  | 'subjects'
+  | 'topics'
+  | 'subtopics'
+  | 'notes'
+  | 'questions'
+  | 'study-sessions'
+  | 'review-schedules'
+  | 'review-attempts'
+  | 'question-history'
+  | 'activity-plan-items';
+
+export type ResourceValue =
+  | Subject
+  | Topic
+  | Subtopic
+  | import('@/types').Note
+  | Question
+  | StudySession
+  | ReviewSchedule
+  | ReviewAttempt
+  | QuestionHistoryEntry
+  | ActivityPlanItem;
+
+export function getActiveProfileId(): string | null {
+  return window.localStorage.getItem(ACTIVE_PROFILE_KEY);
+}
+
+export function setActiveProfileId(profileId: string): void {
+  window.localStorage.setItem(ACTIVE_PROFILE_KEY, profileId);
+}
+
 function getHeaders(): HeadersInit {
-  const headers: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  const token = getToken();
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  const activeProfileId = getActiveProfileId();
+  if (activeProfileId) {
+    headers['X-Profile-Id'] = activeProfileId;
   }
-
   return headers;
 }
 
-/**
- * Handle API response
- */
 async function handleResponse<T>(response: Response): Promise<T> {
-  if (response.status === 401) {
-    clearAuth();
-    window.location.href = '/login';
-    throw new Error('Sessão expirada');
-  }
-
-  const data = await response.json();
-
+  const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data.error || 'Erro na requisição');
+    throw new Error(data?.detail || data?.error || 'Erro na requisição');
   }
-
-  return data;
+  return data as T;
 }
 
-/**
- * Generic fetch wrapper
- */
-async function fetchApi<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function fetchApi<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
     headers: {
@@ -51,105 +90,64 @@ async function fetchApi<T>(
       ...options.headers,
     },
   });
-
   return handleResponse<T>(response);
 }
 
-// ==================== SUBJECTS ====================
-
-export interface Subject {
-  id: string;
-  userId: string;
-  name: string;
-  orderNum?: number;
-  createdAt: string;
-  updatedAt: string;
+export async function getAppState(): Promise<AppStateData> {
+  return fetchApi<AppStateData>('/app-state');
 }
 
-export async function getSubjects(): Promise<Subject[]> {
-  return fetchApi<Subject[]>('/subjects');
+export async function getAppStateForProfile(profileId: string): Promise<AppStateData> {
+  return fetchApi<AppStateData>('/app-state', {
+    headers: { 'X-Profile-Id': profileId },
+  });
 }
 
-export async function createSubject(data: { name: string; orderNum?: number }): Promise<Subject> {
-  return fetchApi<Subject>('/subjects', {
+export async function listProfiles(): Promise<Profile[]> {
+  return fetchApi<Profile[]>('/profiles');
+}
+
+export async function createProfile(data: { name: string; avatar?: string }): Promise<Profile> {
+  return fetchApi<Profile>('/profiles', {
     method: 'POST',
     body: JSON.stringify(data),
   });
 }
 
-export async function updateSubject(id: string, data: { name: string; orderNum?: number }): Promise<Subject> {
-  return fetchApi<Subject>(`/subjects/${id}`, {
+export async function updateProfile(profile: Profile): Promise<Profile> {
+  return fetchApi<Profile>(`/profiles/${profile.id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(profile),
   });
 }
 
-export async function deleteSubject(id: string): Promise<void> {
-  await fetchApi(`/subjects/${id}`, {
-    method: 'DELETE',
-  });
+export async function deleteProfile(id: string): Promise<void> {
+  await fetchApi(`/profiles/${id}`, { method: 'DELETE' });
 }
 
-// ==================== TOPICS ====================
-
-export interface Topic {
-  id: string;
-  userId: string;
-  subjectId: string;
-  name: string;
-  orderNum?: number;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export async function getTopics(subjectId?: string): Promise<Topic[]> {
-  const query = subjectId ? `?subjectId=${subjectId}` : '';
-  return fetchApi<Topic[]>(`/topics${query}`);
-}
-
-export async function createTopic(data: {
-  subjectId: string;
-  name: string;
-  orderNum?: number;
-  description?: string;
-}): Promise<Topic> {
-  return fetchApi<Topic>('/topics', {
+export async function createResource<T extends ResourceValue>(resource: ResourceName, item: T): Promise<T> {
+  return fetchApi<T>(`/${resource}`, {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify(item),
   });
 }
 
-export async function updateTopic(
-  id: string,
-  data: { name: string; orderNum?: number; description?: string }
-): Promise<Topic> {
-  return fetchApi<Topic>(`/topics/${id}`, {
+export async function updateResource<T extends ResourceValue>(resource: ResourceName, item: T): Promise<T> {
+  return fetchApi<T>(`/${resource}/${item.id}`, {
     method: 'PUT',
-    body: JSON.stringify(data),
+    body: JSON.stringify(item),
   });
 }
 
-export async function deleteTopic(id: string): Promise<void> {
-  await fetchApi(`/topics/${id}`, {
-    method: 'DELETE',
+export async function deleteResource(resource: ResourceName, id: string): Promise<void> {
+  await fetchApi(`/${resource}/${id}`, { method: 'DELETE' });
+}
+
+export async function reorderResource<T extends ResourceValue>(resource: ResourceName, ids: string[]): Promise<T[]> {
+  return fetchApi<T[]>(`/${resource}/reorder`, {
+    method: 'PUT',
+    body: JSON.stringify({ ids }),
   });
-}
-
-// ==================== SETTINGS ====================
-
-export interface Settings {
-  userId: string;
-  pomodoroMinutes: number;
-  shortBreakMinutes: number;
-  longBreakMinutes: number;
-  dailyGoalMinutes: number;
-  enableSounds: boolean;
-  theme: 'dark' | 'light';
-}
-
-export async function getSettings(): Promise<Settings> {
-  return fetchApi<Settings>('/settings');
 }
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
@@ -159,32 +157,20 @@ export async function updateSettings(data: Partial<Settings>): Promise<Settings>
   });
 }
 
-// ==================== SYNC ====================
-
-export interface SyncData {
-  subjects: Subject[];
-  topics: Topic[];
-  subtopics?: any[];
-  notes?: any[];
-  questions?: any[];
-  studySessions?: any[];
-  reviewSchedules?: any[];
-  reviewAttempts?: any[];
-  questionHistory?: any[];
-  activityPlanItems?: any[];
-  settings?: any;
-  syncedAt: string;
+export async function setCompletedItem(
+  itemType: 'topic' | 'subtopic',
+  itemId: string,
+  completed: boolean
+): Promise<{ completedTopics: string[]; completedSubtopics: string[] }> {
+  return fetchApi(`/completed-items/${itemType}/${itemId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ completed }),
+  });
 }
 
-export async function syncData(lastSync?: string): Promise<SyncData> {
-  const query = lastSync ? `?lastSync=${lastSync}` : '';
-  return fetchApi<SyncData>(`/sync${query}`);
-}
-
-export async function pushData(data: Partial<SyncData>): Promise<{ synced: number; syncedAt: string }> {
-  return fetchApi<{ synced: number; syncedAt: string }>('/sync', {
+export async function importBackup(mode: 'replace' | 'merge', data: unknown): Promise<void> {
+  await fetchApi('/data/import', {
     method: 'POST',
-    body: JSON.stringify(data),
-    keepalive: true, // Crucial for incognito/closing tab sync
+    body: JSON.stringify({ mode, data }),
   });
 }

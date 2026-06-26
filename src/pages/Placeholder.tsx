@@ -592,6 +592,7 @@ export function QuestionsPage() {
     const correctCount = Number(manualCorrect) || 0;
     const wrongCount = Number(manualWrong) || 0;
     const blankCount = Number(manualBlank) || 0;
+    const now = new Date().toISOString();
 
     await addQuestionHistory({
       id: generateId(),
@@ -601,7 +602,8 @@ export function QuestionsPage() {
       wrongCount,
       blankCount,
       notes: manualNotes || undefined,
-      createdAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
     });
 
     setManualCorrect('');
