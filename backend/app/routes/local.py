@@ -163,8 +163,8 @@ async def ensure_profile_settings(db, profile_id: str, user_id: str) -> None:
         """
         INSERT OR IGNORE INTO settings (
           id, user_id, profile_id, pomodoro_minutes, short_break_minutes,
-          long_break_minutes, daily_goal_minutes, enable_sounds, theme, updated_at
-        ) VALUES (?, ?, ?, 25, 5, 15, 120, 1, 'dark', ?)
+          long_break_minutes, daily_goal_minutes, enable_sounds, theme, disable_progress_animations, updated_at
+        ) VALUES (?, ?, ?, 25, 5, 15, 120, 1, 'dark', 0, ?)
         """,
         [profile_id, user_id, profile_id, now],
     )
@@ -222,7 +222,8 @@ async def app_state(
 
 @router.get("/profiles")
 async def list_profiles(user=Depends(require_user), db=Depends(get_db)):
-    await db.ensure_default_profile()
+    # Ensure the local user exists (but do NOT auto-create a default profile)
+    await db.ensure_local_user()
     result = await db.execute(
         "SELECT * FROM profiles WHERE user_id = ? AND deleted_at IS NULL ORDER BY created_at ASC",
         [user["id"]],
@@ -247,6 +248,8 @@ async def create_profile(body: dict[str, Any], user=Depends(require_user), db=De
     profile_id = str(body.get("id") or uuid4())
     avatar = str(body.get("avatar") or body.get("avatarId") or "scholar")
     now = now_iso()
+    # Ensure local user exists before creating the profile
+    await db.ensure_local_user()
     await db.execute(
         "INSERT INTO profiles (id, user_id, name, avatar_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         [profile_id, user["id"], name, avatar, now, now],
@@ -289,8 +292,6 @@ async def delete_profile(
     target_id = profile_id or id
     if not target_id:
         raise HTTPException(status_code=400, detail="ID é obrigatório")
-    if target_id == DEFAULT_PROFILE_ID:
-        raise HTTPException(status_code=400, detail="O perfil principal não pode ser excluído")
     result = await db.execute("DELETE FROM profiles WHERE id = ? AND user_id = ?", [target_id, user["id"]])
     if result.rows_affected == 0:
         raise HTTPException(status_code=404, detail="Perfil não encontrado")
@@ -317,6 +318,7 @@ async def get_settings(
         "dailyGoalMinutes": row.get("daily_goal_minutes"),
         "enableSounds": bool(row.get("enable_sounds")),
         "theme": row.get("theme"),
+        "disableProgressAnimations": bool(row.get("disable_progress_animations")),
         "updatedAt": row.get("updated_at"),
     }
 
@@ -336,6 +338,7 @@ async def update_settings(
         "dailyGoalMinutes": "daily_goal_minutes",
         "enableSounds": "enable_sounds",
         "theme": "theme",
+        "disableProgressAnimations": "disable_progress_animations",
     }
     sets: list[str] = []
     args: list[Any] = []

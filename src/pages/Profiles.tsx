@@ -79,7 +79,11 @@ export function ProfilesPage() {
   const handleDelete = () => {
     if (editingProfile && confirm(`Excluir o perfil "${editingProfile.name}"?`)) {
       deleteProfile(editingProfile.id);
-      closeModal();
+      // Force close the modal directly (bypass any guards)
+      setShowModal(false);
+      setEditingProfile(null);
+      setProfileName('');
+      setSelectedAvatar(AVATAR_OPTIONS[0].id);
     }
   };
 
@@ -234,6 +238,7 @@ export function ProfilesPage() {
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

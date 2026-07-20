@@ -53,6 +53,7 @@ export function Layout({ children }: LayoutProps) {
     activeProfileId,
     loadProfiles,
     getActivityPlanProgress,
+    settings,
   } = useStore();
 
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
@@ -224,7 +225,9 @@ export function Layout({ children }: LayoutProps) {
         <div className="sticky top-0 z-40 bg-true-black border-b border-gray-800">
           <div className="px-6 py-4">
             <div className="relative overflow-hidden rounded-lg border border-gray-700 bg-gray-900/80 px-4 py-3">
-              <div className="pointer-events-none absolute inset-0 opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[pulse_2.4s_ease-in-out_infinite]" />
+              {!settings?.disableProgressAnimations && (
+                <div className="pointer-events-none absolute inset-0 opacity-20 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent)] animate-[pulse_2.4s_ease-in-out_infinite]" />
+              )}
               <div className="flex items-center justify-between gap-3 text-xs mb-2">
                 <span className="uppercase tracking-[0.22em] text-gray-400">Progresso de conteúdos</span>
                 <span className="font-semibold text-true-white">

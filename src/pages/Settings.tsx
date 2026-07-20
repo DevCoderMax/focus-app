@@ -138,6 +138,27 @@ export function SettingsPage() {
         </div>
       </div>
 
+      {/* Preferences */}
+      <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
+        <h2 className="text-xl font-bold mb-4">Preferências</h2>
+        <div className="space-y-4">
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={settings.disableProgressAnimations || false}
+              onChange={(e) =>
+                updateSettings({ disableProgressAnimations: e.target.checked })
+              }
+              className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900"
+            />
+            <div>
+              <p className="font-medium text-true-white">Desativar efeito pulsante do progresso</p>
+              <p className="text-sm text-gray-400">Remove a animação de luz (brilho pulsante) de fundo no cabeçalho</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
       {/* Backup & Restore */}
       <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
         <h2 className="text-xl font-bold mb-4">Backup & Restauração</h2>

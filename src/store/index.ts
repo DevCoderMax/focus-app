@@ -29,6 +29,7 @@ interface AppState {
   settings: Settings | null;
   profiles: Profile[];
   activeProfileId: string | null;
+  profilesLoaded: boolean;
   completedTopics: string[];
   completedSubtopics: string[];
   timerSeconds: number;
@@ -156,6 +157,7 @@ export const useStore = create<AppState>((set, get) => ({
   settings: null,
   profiles: [],
   activeProfileId: api.getActiveProfileId(),
+  profilesLoaded: false,
   completedTopics: [],
   completedSubtopics: [],
   timerSeconds: 0,
@@ -408,10 +410,20 @@ export const useStore = create<AppState>((set, get) => ({
 
   loadProfiles: async () => {
     const profiles = await api.listProfiles();
-    const activeProfileId = api.getActiveProfileId() || profiles[0]?.id || null;
+    if (profiles.length === 0) {
+      // No profiles: clear any stale activeProfileId from localStorage
+      window.localStorage.removeItem('focus.activeProfile');
+      set({ profiles: [], activeProfileId: null, profilesLoaded: true });
+      return;
+    }
+    const storedId = api.getActiveProfileId();
+    // Only use stored ID if it matches an existing profile
+    const validStoredId = profiles.find((p) => p.id === storedId)?.id || null;
+    const activeProfileId = validStoredId || profiles[0]?.id || null;
     if (activeProfileId) api.setActiveProfileId(activeProfileId);
-    set({ profiles, activeProfileId });
+    set({ profiles, activeProfileId, profilesLoaded: true });
   },
+
   setActiveProfile: async (profileId) => {
     api.setActiveProfileId(profileId);
     set({ activeProfileId: profileId });
@@ -431,9 +443,32 @@ export const useStore = create<AppState>((set, get) => ({
     await api.deleteProfile(profileId);
     const profiles = get().profiles.filter((profile) => profile.id !== profileId);
     const nextProfileId = get().activeProfileId === profileId ? profiles[0]?.id || null : get().activeProfileId;
-    if (nextProfileId) api.setActiveProfileId(nextProfileId);
-    set({ profiles, activeProfileId: nextProfileId });
-    await get().refreshData();
+    if (nextProfileId) {
+      api.setActiveProfileId(nextProfileId);
+      set({ profiles, activeProfileId: nextProfileId });
+      await get().refreshData();
+    } else {
+      // No profiles left: clear stored ID and reset all data
+      window.localStorage.removeItem('focus.activeProfile');
+      set({
+        profiles: [],
+        activeProfileId: null,
+        profilesLoaded: true,
+        subjects: [],
+        topics: [],
+        subtopics: [],
+        notes: [],
+        questions: [],
+        studySessions: [],
+        reviewSchedules: [],
+        reviewAttempts: [],
+        questionHistory: [],
+        activityPlanItems: [],
+        settings: null,
+        completedTopics: [],
+        completedSubtopics: [],
+      });
+    }
   },
 
   startTimer: () => {

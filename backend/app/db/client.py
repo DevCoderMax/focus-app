@@ -41,8 +41,13 @@ class SQLiteClient:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA foreign_keys = ON")
         self._conn.execute("PRAGMA journal_mode = WAL")
-        self._conn.commit()
         self.ensure_schema()
+        try:
+            self._conn.execute("ALTER TABLE settings ADD COLUMN disable_progress_animations INTEGER NOT NULL DEFAULT 0")
+            self._conn.commit()
+        except sqlite3.OperationalError:
+            pass # Column already exists
+
 
     async def close(self) -> None:
         with self._lock:
@@ -60,7 +65,8 @@ class SQLiteClient:
             self._conn.executescript(sql)
             self._conn.commit()
 
-    async def ensure_default_profile(self) -> None:
+    async def ensure_local_user(self) -> None:
+        """Ensure the local user record exists (required for all local operations)."""
         now = _now()
         await self.execute(
             """
@@ -69,6 +75,11 @@ class SQLiteClient:
             """,
             [LOCAL_USER_ID, "local@focus.local", "local", "Usuário Local", now, now],
         )
+
+    async def ensure_default_profile(self) -> None:
+        """Ensure the local user and default profile exist (used for fallback when no profile header is sent)."""
+        await self.ensure_local_user()
+        now = _now()
         await self.execute(
             """
             INSERT OR IGNORE INTO profiles (id, user_id, name, avatar_id, created_at, updated_at)
@@ -80,8 +91,8 @@ class SQLiteClient:
             """
             INSERT OR IGNORE INTO settings (
               id, user_id, profile_id, pomodoro_minutes, short_break_minutes,
-              long_break_minutes, daily_goal_minutes, enable_sounds, theme, updated_at
-            ) VALUES (?, ?, ?, 25, 5, 15, 120, 1, 'dark', ?)
+              long_break_minutes, daily_goal_minutes, enable_sounds, theme, disable_progress_animations, updated_at
+            ) VALUES (?, ?, ?, 25, 5, 15, 120, 1, 'dark', 0, ?)
             """,
             [DEFAULT_PROFILE_ID, LOCAL_USER_ID, DEFAULT_PROFILE_ID, now],
         )
@@ -266,6 +277,7 @@ class SQLiteClient:
               daily_goal_minutes INTEGER NOT NULL DEFAULT 120,
               enable_sounds INTEGER NOT NULL DEFAULT 1,
               theme TEXT NOT NULL DEFAULT 'dark',
+              disable_progress_animations INTEGER NOT NULL DEFAULT 0,
               updated_at TEXT NOT NULL,
               deleted_at TEXT
             );

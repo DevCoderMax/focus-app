@@ -166,6 +166,7 @@ export interface Settings {
   dailyGoalMinutes: number;
   enableSounds: boolean;
   theme: 'dark' | 'light';
+  disableProgressAnimations: boolean;
   updatedAt: string;
   deletedAt?: string;
 }
