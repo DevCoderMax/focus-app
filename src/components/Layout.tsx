@@ -21,6 +21,7 @@ import {
 import { useStore } from '@/store';
 import { formatTime } from '@/utils/helpers';
 import { AvatarSvg } from '@/components/AvatarSvg';
+import { MusicPlayer } from '@/components/music/MusicPlayer';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -208,6 +209,9 @@ export function Layout({ children }: LayoutProps) {
             </Link>
           )}
         </div>
+
+        {/* Music Player */}
+        <MusicPlayer />
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-800 text-xs text-gray-500">

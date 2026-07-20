@@ -20,6 +20,7 @@ export function TimerPage() {
     subtopics,
     activityPlanItems,
     settings,
+    updateSettings,
     addStudySession,
     loadAllData,
     timerSeconds,
@@ -45,6 +46,12 @@ export function TimerPage() {
   const [isFocusVisible, setIsFocusVisible] = useState(false);
   const [isFocusAnimating, setIsFocusAnimating] = useState(false);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
+  
+  // Pomodoro phases
+  type PomodoroPhase = 'pomodoro' | 'shortBreak' | 'longBreak' | 'idle';
+  const [phase, setPhase] = useState<PomodoroPhase>('idle');
+  const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
+  const [pomodoroCount, setPomodoroCount] = useState(0);
   const [questionCorrect, setQuestionCorrect] = useState('');
   const [questionWrong, setQuestionWrong] = useState('');
   const [questionBlank, setQuestionBlank] = useState('');
@@ -54,6 +61,24 @@ export function TimerPage() {
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
+
+  // Phase timer countdown
+  useEffect(() => {
+    if (phase === 'idle' || !isRunning) return;
+    
+    const interval = setInterval(() => {
+      setPhaseTimeLeft((prev) => {
+        if (prev <= 1) {
+          // Phase finished
+          handlePhaseEnd();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [phase, isRunning]);
 
 
   useEffect(() => {
@@ -118,6 +143,25 @@ export function TimerPage() {
   const canStart = !!subjectId && selectedTopicIds.length > 0 && !!activityType;
   const canFinish = isRunning || timerSeconds > 0;
 
+  const handlePhaseEnd = () => {
+    if (phase === 'pomodoro') {
+      const newCount = pomodoroCount + 1;
+      setPomodoroCount(newCount);
+      // After 4 pomodoros, take a long break
+      if (newCount % 4 === 0) {
+        setPhase('longBreak');
+        setPhaseTimeLeft((settings?.longBreakMinutes ?? 15) * 60);
+      } else {
+        setPhase('shortBreak');
+        setPhaseTimeLeft((settings?.shortBreakMinutes ?? 5) * 60);
+      }
+    } else {
+      // After break, start new pomodoro
+      setPhase('pomodoro');
+      setPhaseTimeLeft((settings?.pomodoroMinutes ?? 25) * 60);
+    }
+  };
+
   const handleStart = () => {
     if (!canStart) return;
     if (!timerStartedAt) {
@@ -125,6 +169,13 @@ export function TimerPage() {
     }
     setIsRunning(true);
     startTimer();
+    
+    // Start pomodoro phase if idle
+    if (phase === 'idle') {
+      setPhase('pomodoro');
+      setPhaseTimeLeft((settings?.pomodoroMinutes ?? 25) * 60);
+    }
+    
     if (focusMode) {
       setIsFocusActive(true);
     }
@@ -141,6 +192,9 @@ export function TimerPage() {
     setIsFocusActive(false);
     setIsFocusVisible(false);
     setIsFocusAnimating(false);
+    setPhase('idle');
+    setPhaseTimeLeft(0);
+    setPomodoroCount(0);
     resetTimer();
   };
 
@@ -265,6 +319,47 @@ export function TimerPage() {
           <p className="text-gray-400">
             Configure a sessão e acompanhe o tempo para registrar seus estudos.
           </p>
+        </div>
+
+        {/* Timer Settings */}
+        <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+          <h2 className="text-lg font-bold mb-4">Configurações do Pomodoro</h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Pomodoro (min)</label>
+              <input
+                type="number"
+                value={settings?.pomodoroMinutes ?? 25}
+                onChange={(e) => updateSettings({ pomodoroMinutes: parseInt(e.target.value) || 25 })}
+                min={1}
+                max={60}
+                className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Pausa curta (min)</label>
+              <input
+                type="number"
+                value={settings?.shortBreakMinutes ?? 5}
+                onChange={(e) => updateSettings({ shortBreakMinutes: parseInt(e.target.value) || 5 })}
+                min={1}
+                max={30}
+                className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Pausa longa (min)</label>
+              <input
+                type="number"
+                value={settings?.longBreakMinutes ?? 15}
+                onChange={(e) => updateSettings({ longBreakMinutes: parseInt(e.target.value) || 15 })}
+                min={1}
+                max={60}
+                className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
+              />
+            </div>
+
+          </div>
         </div>
 
         <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
@@ -429,14 +524,34 @@ export function TimerPage() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
             <div>
               <p className="text-sm text-gray-400">Modo</p>
-              <p className="text-xl font-bold">Pomodoro</p>
+              <p className="text-xl font-bold">
+                {phase === 'idle' && 'Pomodoro'}
+                {phase === 'pomodoro' && '🎯 Focando'}
+                {phase === 'shortBreak' && '☕ Descanse'}
+                {phase === 'longBreak' && '🌴 Pausa longa'}
+              </p>
               <p className="text-sm text-gray-500 mt-1">
-                Ciclo padrão de {settings?.pomodoroMinutes ?? 25} minutos.
+                {phase === 'idle' && `Ciclo: ${settings?.pomodoroMinutes ?? 25}min / ${settings?.shortBreakMinutes ?? 5}min`}
+                {phase === 'pomodoro' && `Faltam ${Math.floor(phaseTimeLeft / 60)}:${String(phaseTimeLeft % 60).padStart(2, '0')}`}
+                {phase === 'shortBreak' && `Próximo pomodoro em ${Math.floor(phaseTimeLeft / 60)}:${String(phaseTimeLeft % 60).padStart(2, '0')}`}
+                {phase === 'longBreak' && `Voltando em ${Math.floor(phaseTimeLeft / 60)}:${String(phaseTimeLeft % 60).padStart(2, '0')}`}
               </p>
             </div>
             <div className="text-center">
-              <p className="text-5xl font-bold tracking-tight">{formatTime(timerSeconds)}</p>
-              <p className="text-sm text-gray-500 mt-2">Tempo decorrido</p>
+              <p className="text-5xl font-bold tracking-tight">
+                {phase !== 'idle' 
+                  ? `${Math.floor(phaseTimeLeft / 60)}:${String(phaseTimeLeft % 60).padStart(2, '0')}`
+                  : formatTime(timerSeconds)
+                }
+              </p>
+              <p className="text-sm text-gray-500 mt-2">
+                {phase !== 'idle' ? 'Tempo restante' : 'Tempo decorrido'}
+              </p>
+              {pomodoroCount > 0 && (
+                <p className="text-xs text-gray-600 mt-1">
+                  {pomodoroCount} pomodoro{pomodoroCount > 1 ? 's' : ''} hoje
+                </p>
+              )}
             </div>
             <div className="flex flex-wrap gap-3 justify-center">
               {isRunning ? (
@@ -473,9 +588,14 @@ export function TimerPage() {
           >
             <X size={20} />
           </button>
-          <p className="text-sm text-gray-500 mb-4">Modo Focus</p>
+          <p className="text-sm text-gray-500 mb-4">
+            {phase === 'pomodoro' ? '🎯 Focando' : phase === 'shortBreak' ? '☕ Descanse' : phase === 'longBreak' ? '🌴 Pausa longa' : 'Modo Focus'}
+          </p>
           <p className="text-6xl md:text-7xl font-bold tracking-tight">
-            {formatTime(timerSeconds)}
+            {phase !== 'idle' 
+              ? `${Math.floor(phaseTimeLeft / 60)}:${String(phaseTimeLeft % 60).padStart(2, '0')}`
+              : formatTime(timerSeconds)
+            }
           </p>
           <div className="mt-10 flex items-center gap-6">
             <button

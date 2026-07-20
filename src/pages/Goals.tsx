@@ -55,9 +55,15 @@ export function GoalsPage() {
       {/* Goals List */}
       <GoalsList animated={animated}
         goals={goalsAnalytics.goals || []}
-        onAdd={addGoal}
+        onAdd={async (goal) => {
+          await addGoal(goal);
+          await loadGoalsAnalytics();
+        }}
         onUpdate={updateGoal as (goal: Goal) => Promise<void>}
-        onDelete={deleteGoal}
+        onDelete={async (id) => {
+          await deleteGoal(id);
+          await loadGoalsAnalytics();
+        }}
       />
     </div>
   );

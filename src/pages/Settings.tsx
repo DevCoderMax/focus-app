@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
-import { Input } from '@/components/Input';
 import { Download, Upload, Trash2 } from 'lucide-react';
 import {
   clearAllData,
@@ -89,53 +88,6 @@ export function SettingsPage() {
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Configurações</h1>
         <p className="text-gray-400">Personalize sua experiência</p>
-      </div>
-
-      {/* Study Settings */}
-      <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
-        <h2 className="text-xl font-bold mb-4">Temporizadores</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Input
-            type="number"
-            label="Pomodoro (minutos)"
-            value={settings.pomodoroMinutes}
-            onChange={(e) =>
-              updateSettings({ pomodoroMinutes: parseInt(e.target.value) })
-            }
-            min={1}
-            max={60}
-          />
-          <Input
-            type="number"
-            label="Pausa curta (minutos)"
-            value={settings.shortBreakMinutes}
-            onChange={(e) =>
-              updateSettings({ shortBreakMinutes: parseInt(e.target.value) })
-            }
-            min={1}
-            max={30}
-          />
-          <Input
-            type="number"
-            label="Pausa longa (minutos)"
-            value={settings.longBreakMinutes}
-            onChange={(e) =>
-              updateSettings({ longBreakMinutes: parseInt(e.target.value) })
-            }
-            min={1}
-            max={60}
-          />
-          <Input
-            type="number"
-            label="Meta diária (minutos)"
-            value={settings.dailyGoalMinutes}
-            onChange={(e) =>
-              updateSettings({ dailyGoalMinutes: parseInt(e.target.value) })
-            }
-            min={30}
-            max={480}
-          />
-        </div>
       </div>
 
       {/* Preferences */}
