@@ -1,5 +1,7 @@
 import type {
   ActivityPlanItem,
+  Goal,
+  GoalsAnalytics,
   Profile,
   Question,
   QuestionHistoryEntry,
@@ -26,6 +28,7 @@ export interface AppStateData {
   reviewAttempts: ReviewAttempt[];
   questionHistory: QuestionHistoryEntry[];
   activityPlanItems: ActivityPlanItem[];
+  goals: Goal[];
   settings: Settings;
   profiles: Profile[];
   activeProfileId: string;
@@ -43,7 +46,8 @@ export type ResourceName =
   | 'review-schedules'
   | 'review-attempts'
   | 'question-history'
-  | 'activity-plan-items';
+  | 'activity-plan-items'
+  | 'goals';
 
 export type ResourceValue =
   | Subject
@@ -55,7 +59,8 @@ export type ResourceValue =
   | ReviewSchedule
   | ReviewAttempt
   | QuestionHistoryEntry
-  | ActivityPlanItem;
+  | ActivityPlanItem
+  | Goal;
 
 export function getActiveProfileId(): string | null {
   return window.localStorage.getItem(ACTIVE_PROFILE_KEY);
@@ -173,4 +178,9 @@ export async function importBackup(mode: 'replace' | 'merge', data: unknown): Pr
     method: 'POST',
     body: JSON.stringify({ mode, data }),
   });
+}
+
+
+export async function getGoalsAnalytics(): Promise<GoalsAnalytics> {
+  return fetchApi<GoalsAnalytics>('/goals/analytics');
 }

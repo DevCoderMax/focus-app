@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type {
   ActivityPlanItem,
+  Goal,
+  GoalsAnalytics,
   Note,
   Profile,
   Question,
@@ -26,6 +28,8 @@ interface AppState {
   reviewAttempts: ReviewAttempt[];
   questionHistory: QuestionHistoryEntry[];
   activityPlanItems: ActivityPlanItem[];
+  goals: Goal[];
+  goalsAnalytics: GoalsAnalytics | null;
   settings: Settings | null;
   profiles: Profile[];
   activeProfileId: string | null;
@@ -86,6 +90,11 @@ interface AppState {
   decrementActivityPlanProgress: (id: string) => Promise<void>;
   markActivityPlanCompleted: (id: string) => Promise<void>;
   getActivityPlanProgress: () => { completed: number; total: number; percentage: number };
+
+  addGoal: (goal: Goal) => Promise<void>;
+  updateGoal: (goal: Goal) => Promise<void>;
+  deleteGoal: (id: string) => Promise<void>;
+  loadGoalsAnalytics: () => Promise<void>;
 
   updateSettings: (settings: Partial<Settings>) => Promise<void>;
 
@@ -154,6 +163,8 @@ export const useStore = create<AppState>((set, get) => ({
   reviewAttempts: [],
   questionHistory: [],
   activityPlanItems: [],
+  goals: [],
+  goalsAnalytics: null,
   settings: null,
   profiles: [],
   activeProfileId: api.getActiveProfileId(),
@@ -182,6 +193,7 @@ export const useStore = create<AppState>((set, get) => ({
         reviewAttempts: data.reviewAttempts,
         questionHistory: data.questionHistory,
         activityPlanItems: data.activityPlanItems,
+        goals: data.goals || [],
         settings: data.settings,
         profiles: data.profiles,
         activeProfileId: data.activeProfileId,
@@ -468,6 +480,27 @@ export const useStore = create<AppState>((set, get) => ({
         completedTopics: [],
         completedSubtopics: [],
       });
+    }
+  },
+
+  addGoal: async (goal) => {
+    const created = await api.createResource<Goal>('goals', goal);
+    set({ goals: [created, ...get().goals] });
+  },
+  updateGoal: async (goal) => {
+    const updated = await api.updateResource<Goal>('goals', goal);
+    set({ goals: get().goals.map(g => g.id === updated.id ? updated : g) });
+  },
+  deleteGoal: async (id) => {
+    await api.deleteResource('goals', id);
+    set({ goals: get().goals.filter(g => g.id !== id) });
+  },
+  loadGoalsAnalytics: async () => {
+    try {
+      const analytics = await api.getGoalsAnalytics();
+      set({ goalsAnalytics: analytics });
+    } catch (error) {
+      console.error('Failed to load goals analytics:', error);
     }
   },
 

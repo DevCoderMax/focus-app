@@ -303,6 +303,29 @@ class SQLiteClient:
             CREATE INDEX IF NOT EXISTS idx_question_history_scope ON question_history(user_id, profile_id, topic_id);
             CREATE INDEX IF NOT EXISTS idx_activity_plan_items_scope ON activity_plan_items(user_id, profile_id, topic_id);
             CREATE INDEX IF NOT EXISTS idx_completed_items_scope ON completed_items(user_id, profile_id, item_type);
+            CREATE TABLE IF NOT EXISTS goals (
+              id TEXT PRIMARY KEY,
+              user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+              profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+              title TEXT NOT NULL,
+              description TEXT,
+              goal_type TEXT NOT NULL,
+              target_value REAL NOT NULL,
+              current_value REAL NOT NULL DEFAULT 0,
+              unit TEXT,
+              subject_id TEXT REFERENCES subjects(id) ON DELETE SET NULL,
+              topic_id TEXT REFERENCES topics(id) ON DELETE SET NULL,
+              period TEXT NOT NULL DEFAULT 'weekly',
+              start_date TEXT NOT NULL,
+              end_date TEXT,
+              status TEXT NOT NULL DEFAULT 'active',
+              created_at TEXT NOT NULL,
+              updated_at TEXT NOT NULL,
+              deleted_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_goals_scope ON goals(user_id, profile_id, status);
+            CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(user_id, profile_id, goal_type);
             """
         )
         now = _now()

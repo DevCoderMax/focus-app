@@ -235,3 +235,103 @@ export interface TopicMetrics {
   // Strategic
   improvementPotential: boolean; // 60-75% zone - best ROI
 }
+
+
+// Goals & Analytics
+export interface Goal {
+  id: string;
+  title: string;
+  description?: string;
+  goalType: 'study_time' | 'streak' | 'accuracy' | 'volume' | 'completion' | 'custom';
+  targetValue: number;
+  currentValue: number;
+  unit?: string;
+  subjectId?: string;
+  topicId?: string;
+  period: 'daily' | 'weekly' | 'monthly' | 'total';
+  startDate: string;
+  endDate?: string;
+  status: 'active' | 'completed' | 'expired' | 'abandoned';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CoachingMessage {
+  text: string;
+  subtext?: string;
+  tone: 'gentle' | 'direct' | 'urgent' | 'celebration' | 'empathy' | 'warning';
+  icon: string;
+  accentColor: string;
+}
+
+export interface ConsistencyData {
+  currentStreak: number;
+  longestStreak: number;
+  averageMinutesPerDay: number;
+  daysStudiedLast30: number;
+  consistencyScore: number;
+  weeklyPattern: number[];
+  monthlyTrend: 'improving' | 'declining' | 'stable';
+  daysSinceLastSession: number;
+}
+
+export interface MotivationData {
+  overallScore: number;
+  factors: {
+    frequency: number;
+    duration: number;
+    difficulty: number;
+    improvement: number;
+  };
+  trend: 'rising' | 'falling' | 'stable';
+  riskLevel: 'low' | 'medium' | 'high';
+  lastActivityDays: number;
+}
+
+export interface MentalStateData {
+  overallLabel: string;
+  overallScore: number;
+  indicators: {
+    blankAnswerRate: number;
+    difficultyTrend: 'easy' | 'hard' | 'mixed';
+    sessionLengthConsistency: number;
+    reviewAvoidance: number;
+    timeOfDay: string;
+    energyPattern: 'morning' | 'afternoon' | 'night' | 'distributed';
+  };
+  burnoutRisk: 'none' | 'low' | 'moderate' | 'high';
+}
+
+export interface HabitsData {
+  preferredTime: string;
+  averageSessionMinutes: number;
+  favoriteMode: string;
+  mostStudiedSubject: string;
+  leastStudiedSubject: string;
+  studyDaysPercentage: number;
+  weekendVsWeekday: { weekend: number; weekday: number };
+}
+
+export interface WeeklyReport {
+  totalMinutes: number;
+  totalSessions: number;
+  goalsMet: number;
+  goalsTotal: number;
+  topAchievement: string;
+  improvementArea: string;
+  comparedToLastWeek: {
+    minutesChange: number;
+    sessionsChange: number;
+    accuracyChange: number;
+  };
+}
+
+export interface GoalsAnalytics {
+  coachingMessage: CoachingMessage;
+  goals: Goal[];
+  consistency: ConsistencyData;
+  motivation: MotivationData;
+  mentalState: MentalStateData;
+  habits: HabitsData;
+  weeklyReport: WeeklyReport;
+}

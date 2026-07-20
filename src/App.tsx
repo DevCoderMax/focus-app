@@ -10,6 +10,7 @@ import { SessionsPage } from '@/pages/Sessions';
 import { TimerPage } from '@/pages/Timer';
 import { ProfilesPage } from '@/pages/Profiles';
 import { ReleasesPage } from '@/pages/Releases';
+import { GoalsPage } from '@/pages/Goals';
 import { CalendarPage } from '@/pages/Calendar';
 import { PackageGuidePage } from '@/pages/PackageGuide';
 import { useStore } from '@/store';
@@ -120,6 +121,14 @@ function App() {
                   element={
                     <RequireProfile>
                       <CalendarPage />
+                    </RequireProfile>
+                  }
+                />
+                <Route
+                  path="/goals"
+                  element={
+                    <RequireProfile>
+                      <GoalsPage />
                     </RequireProfile>
                   }
                 />

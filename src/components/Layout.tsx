@@ -16,6 +16,7 @@ import {
   MoreHorizontal,
   Timer as TimerIcon,
   Rocket,
+  Target,
 } from 'lucide-react';
 import { useStore } from '@/store';
 import { formatTime } from '@/utils/helpers';
@@ -23,6 +24,7 @@ import { AvatarSvg } from '@/components/AvatarSvg';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard },
+  { name: 'Metas', href: '/goals', icon: Target },
   { name: 'Matérias', href: '/subjects', icon: BookOpen },
   { name: 'Anotações', href: '/notes', icon: FileText },
   { name: 'Questões', href: '/questions', icon: HelpCircle },
