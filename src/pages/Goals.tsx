@@ -40,17 +40,6 @@ export function GoalsPage() {
       {/* Coaching Banner - The most important component */}
       <CoachingBanner message={goalsAnalytics.coachingMessage} />
 
-      {/* Weekly Report */}
-      <WeeklyReport data={goalsAnalytics.weeklyReport} />
-
-      {/* Analytics Cards Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ConsistencyCard data={goalsAnalytics.consistency} />
-        <MotivationCard data={goalsAnalytics.motivation} />
-        <MentalStateCard data={goalsAnalytics.mentalState} />
-        <HabitsCard data={goalsAnalytics.habits} />
-      </div>
-
       {/* Goals List */}
       <GoalsList animated={animated}
         goals={goalsAnalytics.goals || []}
@@ -67,6 +56,17 @@ export function GoalsPage() {
           await loadGoalsAnalytics();
         }}
       />
+
+      {/* Weekly Report */}
+      <WeeklyReport data={goalsAnalytics.weeklyReport} />
+
+      {/* Analytics Cards Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ConsistencyCard data={goalsAnalytics.consistency} />
+        <MotivationCard data={goalsAnalytics.motivation} />
+        <MentalStateCard data={goalsAnalytics.mentalState} />
+        <HabitsCard data={goalsAnalytics.habits} />
+      </div>
     </div>
   );
 }
