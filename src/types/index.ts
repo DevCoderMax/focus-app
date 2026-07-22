@@ -123,7 +123,7 @@ export interface ReviewSchedule {
   id: string;
   topicId: string;
   subtopicId?: string;
-  originSessionId: string;
+  originSessionId?: string;
   dueAt: string;
   status: ReviewStatus;
   reviewOrder: number;
@@ -170,6 +170,7 @@ export interface Settings {
   enableSounds: boolean;
   theme: 'dark' | 'light';
   disableProgressAnimations: boolean;
+  enableAutoReviews: boolean;
   updatedAt: string;
   deletedAt?: string;
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
-import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain } from 'lucide-react';
+import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain, X, Flame, Award } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -58,10 +58,12 @@ export function DashboardPage() {
     subjects,
     reviewAttempts,
     questionHistory,
+    goals,
     loadAllData,
   } = useStore();
   const [chartRangeDays, setChartRangeDays] = useState(7);
   const [showDetailedMetrics, setShowDetailedMetrics] = useState(false);
+  const [showStreakDetails, setShowStreakDetails] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -82,15 +84,45 @@ export function DashboardPage() {
 
     // Calculate streak
     let streak = 0;
-    let checkDate = new Date(today);
     const sessionDates = new Set(
       studySessions.map((s) => new Date(s.startedAt).toDateString())
     );
+
+    let checkDate = new Date(today);
+    // Se ainda não estudou hoje, não quebra a sequência — começa por ontem
+    if (!sessionDates.has(checkDate.toDateString())) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
 
     while (sessionDates.has(checkDate.toDateString())) {
       streak++;
       checkDate.setDate(checkDate.getDate() - 1);
     }
+
+    // Longest streak (maior sequência histórica de dias consecutivos)
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const dayIndexes = Array.from(
+      new Set(
+        studySessions.map((s) => {
+          const d = new Date(s.startedAt);
+          return Math.floor(
+            new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / MS_PER_DAY
+          );
+        })
+      )
+    ).sort((a, b) => a - b);
+
+    let longestStreak = 0;
+    let run = 0;
+    let prevDay: number | null = null;
+    for (const day of dayIndexes) {
+      run = prevDay !== null && day === prevDay + 1 ? run + 1 : 1;
+      if (run > longestStreak) longestStreak = run;
+      prevDay = day;
+    }
+
+    // Total de dias estudados (histórico)
+    const totalStudyDays = dayIndexes.length;
 
     // Total sessions this week
     const weekAgo = new Date(today);
@@ -111,10 +143,41 @@ export function DashboardPage() {
     return {
       todayMinutes,
       streak,
+      longestStreak,
+      totalStudyDays,
       weekSessions: weekSessions.length,
       avgAccuracy,
     };
   }, [studySessions, reviewAttempts]);
+
+  // Calculate daily goals progress
+  const dailyGoalsProgress = useMemo(() => {
+    const dailyGoals = goals.filter(
+      (g) => g.period === 'daily' && g.status === 'active'
+    );
+
+    return dailyGoals.map((goal) => {
+      const progress = goal.targetValue > 0
+        ? Math.min(100, (goal.currentValue / goal.targetValue) * 100)
+        : 0;
+
+      const getUnitLabel = () => {
+        if (goal.unit === 'h') return 'h';
+        if (goal.unit === 'min') return 'min';
+        return goal.unit || '';
+      };
+
+      return {
+        id: goal.id,
+        title: goal.title,
+        currentValue: goal.currentValue,
+        targetValue: goal.targetValue,
+        unit: getUnitLabel(),
+        progress: Math.round(progress),
+        isCompleted: progress >= 100,
+      };
+    });
+  }, [goals]);
 
   // Calculate comprehensive topic metrics
   const topicMetrics = useMemo((): TopicMetrics[] => {
@@ -439,6 +502,63 @@ export function DashboardPage() {
 
   return (
     <div className="p-8">
+      {/* Streak details popup */}
+      {showStreakDetails && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowStreakDetails(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-xl font-bold">
+                <Flame className="text-orange-500" size={22} />
+                Sequência de estudos
+              </h2>
+              <button
+                onClick={() => setShowStreakDetails(false)}
+                className="text-gray-500 hover:text-gray-300"
+                aria-label="Fechar"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg bg-gray-800/60 px-4 py-3">
+                <span className="flex items-center gap-2 text-gray-300">
+                  <Target size={18} className="text-blue-400" />
+                  Sequência atual
+                </span>
+                <span className="text-lg font-bold">{stats.streak} dias</span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg bg-gray-800/60 px-4 py-3">
+                <span className="flex items-center gap-2 text-gray-300">
+                  <Award size={18} className="text-yellow-400" />
+                  Maior sequência
+                </span>
+                <span className="text-lg font-bold">{stats.longestStreak} dias</span>
+              </div>
+
+              <div className="flex items-center justify-between rounded-lg bg-gray-800/60 px-4 py-3">
+                <span className="flex items-center gap-2 text-gray-300">
+                  <Calendar size={18} className="text-green-400" />
+                  Total de dias estudados
+                </span>
+                <span className="text-lg font-bold">{stats.totalStudyDays} dias</span>
+              </div>
+            </div>
+
+            <p className="mt-4 text-xs text-gray-500">
+              A sequência conta dias consecutivos com pelo menos uma sessão de estudo. Estudar hoje mantém a sequência viva.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Dashboard</h1>
@@ -458,6 +578,7 @@ export function DashboardPage() {
           label="Sequência"
           value={`${stats.streak} dias`}
           description="Dias consecutivos"
+          onClick={() => setShowStreakDetails(true)}
         />
         <StatCard
           icon={<Calendar />}
@@ -472,6 +593,38 @@ export function DashboardPage() {
           description="Nas revisões"
         />
       </div>
+
+      {/* Daily Goals Progress */}
+      {dailyGoalsProgress.length > 0 && (
+        <div className="bg-gray-900 rounded-lg p-6 mb-8 border border-gray-800">
+          <h2 className="text-xl font-bold mb-4">Progresso Diário</h2>
+          <div className="space-y-4">
+            {dailyGoalsProgress.map((goal) => (
+              <div key={goal.id}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-gray-300">{goal.title}</span>
+                  <span className={`text-sm font-bold ${goal.isCompleted ? 'text-green-400' : 'text-white'}`}>
+                    {goal.progress}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        goal.isCompleted ? 'bg-green-500' : 'bg-white/30'
+                      }`}
+                      style={{ width: `${goal.progress}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-gray-500 min-w-[80px] text-right">
+                    {goal.currentValue} / {goal.targetValue} {goal.unit}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Charts */}
       <div className="bg-gray-900 rounded-lg p-6 mb-8 border border-gray-800">
@@ -712,11 +865,30 @@ interface StatCardProps {
   label: string;
   value: string;
   description: string;
+  onClick?: () => void;
 }
 
-function StatCard({ icon, label, value, description }: StatCardProps) {
+function StatCard({ icon, label, value, description, onClick }: StatCardProps) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-gray-700 transition-colors">
+    <div
+      onClick={onClick}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick!();
+              }
+            }
+          : undefined
+      }
+      className={`bg-gray-900 rounded-lg p-6 border border-gray-800 transition-colors ${
+        clickable ? 'cursor-pointer hover:border-blue-600' : 'hover:border-gray-700'
+      }`}
+    >
       <div className="flex items-center gap-3 mb-3">
         <div className="text-gray-400">{icon}</div>
         <span className="text-sm font-medium text-gray-400">{label}</span>

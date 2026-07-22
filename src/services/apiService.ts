@@ -182,5 +182,6 @@ export async function importBackup(mode: 'replace' | 'merge', data: unknown): Pr
 
 
 export async function getGoalsAnalytics(): Promise<GoalsAnalytics> {
-  return fetchApi<GoalsAnalytics>('/goals/analytics');
+  const tzOffset = new Date().getTimezoneOffset();
+  return fetchApi<GoalsAnalytics>(`/goals/analytics?tz_offset=${tzOffset}`);
 }

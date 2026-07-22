@@ -385,8 +385,10 @@ export function TimerPage() {
         updatedAt: now,
       });
 
-      // Create review schedules
-      await createReviewsFromSession(session, accuracy, reviewMode, manualIntervals);
+      // Create review schedules if enabled
+      if (settings?.enableAutoReviews !== false) {
+        await createReviewsFromSession(session, accuracy, reviewMode, manualIntervals);
+      }
     }
 
     setQuestionCorrect('');

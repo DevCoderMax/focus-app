@@ -140,7 +140,7 @@ function loadState() {
   return null;
 }
 
-export function MusicPlayer() {
+export function MusicPlayer({ isCollapsed = false }: { isCollapsed?: boolean }) {
   const saved = loadState();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentPlaylist, setCurrentPlaylist] = useState<Playlist>(saved?.playlist || playlists[0]);
@@ -317,8 +317,22 @@ export function MusicPlayer() {
         />
       </div>
 
-      {/* Playlist Selector Dropdown */}
-      {showPlaylistSelector && (
+      {/* Collapsed: apenas ícone + play/pause, alinhado ao widget de timer recolhido */}
+      {isCollapsed ? (
+        <div className="border-t border-gray-800 flex flex-col items-center gap-2 px-2 py-3">
+          <Music size={16} className="text-gray-400" />
+          <button
+            onClick={togglePlay}
+            className="p-2 bg-white text-black rounded-full hover:bg-gray-200 transition-colors"
+            title={isPlaying ? 'Pausar' : 'Tocar'}
+          >
+            {isPlaying ? <Pause size={12} /> : <Play size={12} className="ml-0.5" />}
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* Playlist Selector Dropdown */}
+          {showPlaylistSelector && (
         <div className="absolute bottom-full left-0 right-0 mb-2 p-2 bg-gray-900 border border-gray-700 rounded-lg shadow-lg z-50">
           <p className="text-xs text-gray-400 mb-2 px-2">Estilo de estudo</p>
           {playlists.map((playlist) => (
@@ -450,6 +464,8 @@ export function MusicPlayer() {
           </button>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 }

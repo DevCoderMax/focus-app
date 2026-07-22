@@ -211,7 +211,7 @@ export function Layout({ children }: LayoutProps) {
         </div>
 
         {/* Music Player */}
-        <MusicPlayer />
+        <MusicPlayer isCollapsed={isCollapsed} />
 
         {/* Footer */}
         <div className="p-4 border-t border-gray-800 text-xs text-gray-500">

@@ -88,7 +88,7 @@ RESOURCE_TABLES: dict[str, dict[str, Any]] = {
             "totalReviews": "total_reviews",
             "reviewMode": "review_mode",
         },
-        "required": ["topicId", "originSessionId", "dueAt", "status"],
+        "required": ["topicId", "dueAt", "status"],
         "order": "due_at ASC",
     },
     "review-attempts": {
@@ -342,6 +342,7 @@ async def get_settings(
         "enableSounds": bool(row.get("enable_sounds")),
         "theme": row.get("theme"),
         "disableProgressAnimations": bool(row.get("disable_progress_animations")),
+        "enableAutoReviews": bool(row.get("enable_auto_reviews")),
         "updatedAt": row.get("updated_at"),
     }
 
@@ -362,6 +363,7 @@ async def update_settings(
         "enableSounds": "enable_sounds",
         "theme": "theme",
         "disableProgressAnimations": "disable_progress_animations",
+        "enableAutoReviews": "enable_auto_reviews",
     }
     sets: list[str] = []
     args: list[Any] = []
@@ -550,15 +552,33 @@ async def delete_item(
 
 @router.get("/goals/analytics")
 async def get_goals_analytics(
+    tz_offset: int = 0,
     user=Depends(require_user),
     profile_id: str = Depends(require_profile_id),
     db=Depends(get_db),
 ):
-    """Compute analytics from existing data and generate coaching messages."""
+    """Compute analytics from existing data and generate coaching messages.
+
+    tz_offset: minutes returned by JS Date.getTimezoneOffset() on the client
+    (UTC minus local, e.g. 180 for UTC-3). Used so "today" and every session
+    date are evaluated in the user's local timezone, matching the Dashboard.
+    """
     from datetime import datetime, timedelta
     import random
-    
-    now = datetime.now(timezone.utc)
+
+    def parse_local_date(iso_string: str) -> datetime.date:
+        """Parse an ISO timestamp and return its date in the user's local timezone."""
+        try:
+            clean = iso_string.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(clean)
+            # Normalize to naive UTC, then shift into the client's local frame.
+            if dt.tzinfo is not None:
+                dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return (dt - timedelta(minutes=tz_offset)).date()
+        except Exception:
+            return (datetime.now(timezone.utc) - timedelta(minutes=tz_offset)).date()
+
+    now = datetime.now(timezone.utc) - timedelta(minutes=tz_offset)
     today = now.date()
     
     # Fetch all study sessions
@@ -594,7 +614,7 @@ async def get_goals_analytics(
     session_dates = set()
     for s in sessions:
         try:
-            session_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
+            session_date = parse_local_date(s["started_at"])
             session_dates.add(session_date)
             days_diff = (today - session_date).days
             if days_diff >= 0 and (days_since_last == 0 or days_diff < days_since_last):
@@ -608,9 +628,26 @@ async def get_goals_analytics(
     # Calculate streak
     current_streak = 0
     check_date = today
+    # Se ainda não estudou hoje, não quebra a sequência — começa por ontem
+    if check_date not in session_dates:
+        check_date -= timedelta(days=1)
     while check_date in session_dates:
         current_streak += 1
         check_date -= timedelta(days=1)
+
+    # Calculate longest streak (maior sequência histórica de dias consecutivos)
+    longest_streak = 0
+    if session_dates:
+        run = 1
+        longest_streak = 1
+        for d in sorted(session_dates)[1:]:
+            prev = d - timedelta(days=1)
+            if prev in session_dates:
+                run += 1
+            else:
+                run = 1
+            if run > longest_streak:
+                longest_streak = run
     
     # Calculate consistency score (last 30 days)
     thirty_days_ago = today - timedelta(days=30)
@@ -621,7 +658,7 @@ async def get_goals_analytics(
     total_minutes_30 = 0
     for s in sessions:
         try:
-            session_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
+            session_date = parse_local_date(s["started_at"])
             if session_date >= thirty_days_ago:
                 total_minutes_30 += s.get("duration_sec", 0) / 60
         except:
@@ -673,7 +710,7 @@ async def get_goals_analytics(
         mental_score = 75  # New user - neutral/positive
         mental_label = "Pronto para começar"
     else:
-        mental_score = max(0, 100 - (blank_rate * 100) - (days_since_last * 3) - (burnout_risk == "high" * 20))
+        mental_score = max(0, 100 - (blank_rate * 100) - (days_since_last * 3) - ((burnout_risk == "high") * 20))
         mental_label = "Focado"
         if mental_score < 30:
             mental_label = "Precisa de Descanso"
@@ -698,7 +735,7 @@ async def get_goals_analytics(
     weekly_pattern = [0] * 7
     for s in sessions:
         try:
-            session_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
+            session_date = parse_local_date(s["started_at"])
             if session_date >= thirty_days_ago:
                 day_of_week = session_date.weekday()
                 weekly_pattern[day_of_week] += s.get("duration_sec", 0) / 60
@@ -724,19 +761,16 @@ async def get_goals_analytics(
         # Calculate currentValue based on actual data
         if goal_type == "study_time":
             if period == "daily":
-                # Average minutes per day in last 7 days
-                seven_days_ago = today - timedelta(days=7)
-                recent_minutes = 0
-                recent_days = 0
+                # Minutes studied today only (resets at day boundary)
+                today_minutes = 0
                 for s in sessions:
                     try:
-                        s_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
-                        if s_date >= seven_days_ago:
-                            recent_minutes += s.get("duration_sec", 0) / 60
-                            recent_days = max(recent_days, (today - s_date).days + 1)
+                        s_date = parse_local_date(s["started_at"])
+                        if s_date == today:
+                            today_minutes += s.get("duration_sec", 0) / 60
                     except:
                         pass
-                current_value = round(recent_minutes / max(recent_days, 1), 1)
+                current_value = round(today_minutes, 1)
                 # Convert to hours if unit is h
                 if unit == "h":
                     current_value = round(current_value / 60, 1)
@@ -746,7 +780,7 @@ async def get_goals_analytics(
                 weekly_minutes = 0
                 for s in sessions:
                     try:
-                        s_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
+                        s_date = parse_local_date(s["started_at"])
                         if s_date >= week_start:
                             weekly_minutes += s.get("duration_sec", 0) / 60
                     except:
@@ -760,7 +794,7 @@ async def get_goals_analytics(
                 monthly_minutes = 0
                 for s in sessions:
                     try:
-                        s_date = datetime.fromisoformat(s["started_at"].replace("Z", "+00:00")).date()
+                        s_date = parse_local_date(s["started_at"])
                         if s_date >= month_start:
                             monthly_minutes += s.get("duration_sec", 0) / 60
                     except:
@@ -773,24 +807,22 @@ async def get_goals_analytics(
         elif goal_type == "volume":
             # Count questions in the period
             if period == "daily":
-                seven_days_ago = today - timedelta(days=7)
-                recent_questions = 0
-                recent_days = 0
+                # Questions answered today only (resets at day boundary)
+                today_questions = 0
                 for q in question_history:
                     try:
-                        q_date = datetime.fromisoformat(q["created_at"].replace("Z", "+00:00")).date()
-                        if q_date >= seven_days_ago:
-                            recent_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
-                            recent_days = max(recent_days, (today - q_date).days + 1)
+                        q_date = parse_local_date(q["created_at"])
+                        if q_date == today:
+                            today_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
                     except:
                         pass
-                current_value = round(recent_questions / max(recent_days, 1), 1)
+                current_value = today_questions
             elif period == "weekly":
                 week_start = today - timedelta(days=today.weekday())
                 weekly_questions = 0
                 for q in question_history:
                     try:
-                        q_date = datetime.fromisoformat(q["created_at"].replace("Z", "+00:00")).date()
+                        q_date = parse_local_date(q["created_at"])
                         if q_date >= week_start:
                             weekly_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
                     except:
@@ -801,7 +833,7 @@ async def get_goals_analytics(
                 monthly_questions = 0
                 for q in question_history:
                     try:
-                        q_date = datetime.fromisoformat(q["created_at"].replace("Z", "+00:00")).date()
+                        q_date = parse_local_date(q["created_at"])
                         if q_date >= month_start:
                             monthly_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
                     except:
@@ -843,7 +875,7 @@ async def get_goals_analytics(
         "goals": goals,
         "consistency": {
             "currentStreak": current_streak,
-            "longestStreak": current_streak,  # Simplified
+            "longestStreak": longest_streak,
             "averageMinutesPerDay": round(avg_minutes_per_day, 1),
             "daysStudiedLast30": active_days_30,
             "consistencyScore": min(100, consistency_score),
@@ -932,7 +964,7 @@ def _generate_coaching_message(
         }
     elif days_since_last >= 8:
         return {
-            "text": f"Duas semanas sem estudar. O esquecimento já começou.",
+            "text": f"Mais de uma semana sem estudar. O esquecimento já começou.",
             "subtext": "Volte hoje — mesmo que sejam 15 minutos. O importante é recomeçar.",
             "tone": "urgent",
             "icon": "Clock",
@@ -948,7 +980,7 @@ def _generate_coaching_message(
         }
     elif days_since_last == 2:
         return {
-            "text": "Você não estudou ontem nem anteontem.",
+            "text": "Seu último estudo foi anteontem.",
             "subtext": "Uma página hoje já quebra o ciclo. Tá ao seu alcance.",
             "tone": "gentle",
             "icon": "Coffee",
@@ -956,7 +988,7 @@ def _generate_coaching_message(
         }
     elif days_since_last == 1:
         return {
-            "text": "Você não estudou ontem. Não deixe virar Costume.",
+            "text": "Você ainda não estudou hoje. Não deixe virar costume.",
             "subtext": "Que tal uma sessão rápida hoje?",
             "tone": "gentle",
             "icon": "Sun",

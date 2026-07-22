@@ -83,6 +83,46 @@ class SQLiteClient:
         if migrations:
             self._conn.commit()
 
+        # Recreate review_schedules to fix origin_session_id nullable constraint
+        try:
+            cursor = self._conn.execute("PRAGMA table_info(review_schedules)")
+            info = {row[1]: row for row in cursor.fetchall()}
+            notnull = info.get("origin_session_id", (None, None, None, None, None, None))[3]
+            if notnull:
+                self._conn.executescript("""
+                    CREATE TABLE IF NOT EXISTS review_schedules_new (
+                      id TEXT PRIMARY KEY,
+                      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                      profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+                      topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
+                      subtopic_id TEXT REFERENCES subtopics(id) ON DELETE SET NULL,
+                      origin_session_id TEXT REFERENCES study_sessions(id) ON DELETE SET NULL,
+                      due_at TEXT NOT NULL,
+                      status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'overdue')),
+                      review_order INTEGER NOT NULL DEFAULT 1,
+                      total_reviews INTEGER NOT NULL DEFAULT 1,
+                      review_mode TEXT NOT NULL DEFAULT 'auto',
+                      created_at TEXT NOT NULL,
+                      updated_at TEXT NOT NULL,
+                      deleted_at TEXT
+                    );
+                    INSERT INTO review_schedules_new SELECT * FROM review_schedules;
+                    DROP TABLE review_schedules;
+                    ALTER TABLE review_schedules_new RENAME TO review_schedules;
+                """)
+        except Exception:
+            pass
+
+        # Settings migration
+        cursor2 = self._conn.execute("PRAGMA table_info(settings)")
+        settings_columns = {row[1] for row in cursor2.fetchall()}
+        if "enable_auto_reviews" not in settings_columns:
+            try:
+                self._conn.execute("ALTER TABLE settings ADD COLUMN enable_auto_reviews INTEGER NOT NULL DEFAULT 1")
+                self._conn.commit()
+            except sqlite3.OperationalError:
+                pass
+
     async def ensure_local_user(self) -> None:
         """Ensure the local user record exists (required for all local operations)."""
         now = _now()
@@ -229,7 +269,7 @@ class SQLiteClient:
               profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
               topic_id TEXT NOT NULL REFERENCES topics(id) ON DELETE CASCADE,
               subtopic_id TEXT REFERENCES subtopics(id) ON DELETE SET NULL,
-              origin_session_id TEXT NOT NULL REFERENCES study_sessions(id) ON DELETE CASCADE,
+              origin_session_id TEXT REFERENCES study_sessions(id) ON DELETE SET NULL,
               due_at TEXT NOT NULL,
               status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'overdue')),
               review_order INTEGER NOT NULL DEFAULT 1,
@@ -299,6 +339,7 @@ class SQLiteClient:
               enable_sounds INTEGER NOT NULL DEFAULT 1,
               theme TEXT NOT NULL DEFAULT 'dark',
               disable_progress_animations INTEGER NOT NULL DEFAULT 0,
+              enable_auto_reviews INTEGER NOT NULL DEFAULT 1,
               updated_at TEXT NOT NULL,
               deleted_at TEXT
             );

@@ -89,6 +89,7 @@ interface AppState {
 
   addReviewSchedule: (schedule: ReviewSchedule) => Promise<void>;
   updateReviewSchedule: (schedule: ReviewSchedule) => Promise<void>;
+  deleteReviewSchedule: (id: string) => Promise<void>;
   addReviewAttempt: (attempt: ReviewAttempt) => Promise<void>;
 
   addQuestionHistory: (entry: QuestionHistoryEntry) => Promise<void>;
@@ -390,6 +391,10 @@ export const useStore = create<AppState>((set, get) => ({
   updateReviewSchedule: async (schedule) => {
     const updated = await api.updateResource<ReviewSchedule>('review-schedules', schedule);
     set({ reviewSchedules: replaceById(get().reviewSchedules, updated) });
+  },
+  deleteReviewSchedule: async (id) => {
+    await api.deleteResource('review-schedules', id);
+    set({ reviewSchedules: get().reviewSchedules.filter((s) => s.id !== id) });
   },
   addReviewAttempt: async (attempt) => {
     const created = await api.createResource<ReviewAttempt>('review-attempts', attempt);

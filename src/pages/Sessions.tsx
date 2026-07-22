@@ -34,7 +34,7 @@ function formatActivityLabel(activityType?: string) {
 }
 
 export function SessionsPage() {
-  const { studySessions, subjects, topics, subtopics, loadAllData, deleteStudySession, addStudySession, addQuestionHistory } = useStore();
+  const { studySessions, subjects, topics, subtopics, settings, loadAllData, deleteStudySession, addStudySession, addQuestionHistory } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [topicId, setTopicId] = useState('');
   const [subtopicId, setSubtopicId] = useState('');
@@ -145,8 +145,10 @@ export function SessionsPage() {
         };
         await addQuestionHistory(qhEntry);
 
-        // Create review schedules
-        await createReviewsFromSession(session, accuracy, manualReviewMode, manualReviewIntervals);
+        // Create review schedules if enabled
+        if (settings?.enableAutoReviews !== false) {
+          await createReviewsFromSession(session, accuracy, manualReviewMode, manualReviewIntervals);
+        }
       }
     }
 

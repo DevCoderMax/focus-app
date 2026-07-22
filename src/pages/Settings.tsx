@@ -108,6 +108,21 @@ export function SettingsPage() {
               <p className="text-sm text-gray-400">Remove a animação de luz (brilho pulsante) de fundo no cabeçalho</p>
             </div>
           </label>
+
+          <label className="flex items-center gap-3 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={settings.enableAutoReviews ?? true}
+              onChange={(e) =>
+                updateSettings({ enableAutoReviews: e.target.checked })
+              }
+              className="w-5 h-5 rounded border-gray-700 bg-gray-800 text-purple-500 focus:ring-purple-500 focus:ring-offset-gray-900"
+            />
+            <div>
+              <p className="font-medium text-true-white">Revisões automáticas</p>
+              <p className="text-sm text-gray-400">Cria revisões espaçadas automaticamente ao finalizar sessões com questões</p>
+            </div>
+          </label>
         </div>
       </div>
 
