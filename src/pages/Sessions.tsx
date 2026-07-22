@@ -3,6 +3,7 @@ import { useStore } from '@/store';
 import { formatDuration, formatDate } from '@/utils/helpers';
 import { Clock, Trash2, Plus, X } from 'lucide-react';
 import type { StudySession, ActivityType, QuestionHistoryEntry } from '@/types';
+import { createReviewsFromSession } from '@/services/schedulerService';
 
 function toInputDate(date: Date) {
   const year = date.getFullYear();
@@ -57,6 +58,8 @@ export function SessionsPage() {
   const [manualCorrect, setManualCorrect] = useState('');
   const [manualWrong, setManualWrong] = useState('');
   const [manualBlank, setManualBlank] = useState('');
+  const [manualReviewMode, setManualReviewMode] = useState<'auto' | 'manual'>('auto');
+  const [manualReviewIntervals, setManualReviewIntervals] = useState<number[]>([1]);
 
   useEffect(() => {
     loadAllData();
@@ -125,6 +128,8 @@ export function SessionsPage() {
       const correctCount = Number(manualCorrect) || 0;
       const wrongCount = Number(manualWrong) || 0;
       const blankCount = Number(manualBlank) || 0;
+      const totalQuestions = correctCount + wrongCount + blankCount;
+      const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
       if (correctCount > 0 || wrongCount > 0 || blankCount > 0) {
         const qhEntry: QuestionHistoryEntry = {
@@ -139,6 +144,9 @@ export function SessionsPage() {
           updatedAt: now,
         };
         await addQuestionHistory(qhEntry);
+
+        // Create review schedules
+        await createReviewsFromSession(session, accuracy, manualReviewMode, manualReviewIntervals);
       }
     }
 
@@ -154,6 +162,8 @@ export function SessionsPage() {
     setManualCorrect('');
     setManualWrong('');
     setManualBlank('');
+    setManualReviewMode('auto');
+    setManualReviewIntervals([1]);
   };
 
   const filteredSessions = useMemo(() => {
@@ -440,6 +450,79 @@ export function SessionsPage() {
                       />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {manualActivityType !== 'lesson' && (
+                <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4 space-y-3">
+                  <p className="text-sm font-medium text-gray-300">Revisão espaçada</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualReviewMode('auto')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        manualReviewMode === 'auto'
+                          ? 'bg-white text-black'
+                          : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                      }`}
+                    >
+                      Automático
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualReviewMode('manual')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        manualReviewMode === 'manual'
+                          ? 'bg-white text-black'
+                          : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                      }`}
+                    >
+                      Manual
+                    </button>
+                  </div>
+                  {manualReviewMode === 'auto' ? (
+                    <p className="text-xs text-gray-500">
+                      O sistema cria revisões baseado na sua taxa de acertos.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {manualReviewIntervals.map((interval, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 w-16">{idx + 1}ª revisão</span>
+                          <input
+                            type="number"
+                            value={interval}
+                            onChange={(e) => {
+                              const newIntervals = [...manualReviewIntervals];
+                              newIntervals[idx] = Math.max(1, Number(e.target.value) || 1);
+                              setManualReviewIntervals(newIntervals);
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                            min={1}
+                          />
+                          <span className="text-xs text-gray-500">dias</span>
+                          {manualReviewIntervals.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setManualReviewIntervals(manualReviewIntervals.filter((_, i) => i !== idx))}
+                              className="text-gray-500 hover:text-red-400"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      {manualReviewIntervals.length < 5 && (
+                        <button
+                          type="button"
+                          onClick={() => setManualReviewIntervals([...manualReviewIntervals, manualReviewIntervals[manualReviewIntervals.length - 1] + 3])}
+                          className="flex items-center gap-1 text-xs text-gray-400 hover:text-white mt-1"
+                        >
+                          <Plus size={12} /> Adicionar revisão
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 

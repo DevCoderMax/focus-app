@@ -46,7 +46,7 @@ const EVENT_COLORS = [
 ];
 
 export function CalendarPage() {
-  const { subjects, topics, studySessions, loadAllData } = useStore();
+  const { subjects, topics, studySessions, reviewSchedules, loadAllData } = useStore();
   const [currentWeekStart, setCurrentWeekStart] = useState(() => {
     const today = new Date();
     const dayOfWeek = today.getDay();
@@ -187,6 +187,14 @@ export function CalendarPage() {
     });
   };
 
+  const getPendingReviewsForDay = (dayIndex: number) => {
+    return reviewSchedules.filter(review => {
+      if (review.status !== 'pending') return false;
+      const reviewDate = new Date(review.dueAt);
+      return reviewDate.getDay() === dayIndex && isDateInCurrentWeek(reviewDate);
+    });
+  };
+
   const isDateInCurrentWeek = (date: Date) => {
     const weekStart = new Date(currentWeekStart);
     const weekEnd = new Date(currentWeekStart);
@@ -300,6 +308,11 @@ export function CalendarPage() {
                   const sessionHour = sessionDate.getHours();
                   return sessionHour === hour;
                 });
+                const dayReviews = getPendingReviewsForDay(dayIndex);
+                const reviewsInHour = dayReviews.filter(review => {
+                  const reviewDate = new Date(review.dueAt);
+                  return reviewDate.getHours() === hour;
+                });
                 
                 return (
                   <div
@@ -359,6 +372,29 @@ export function CalendarPage() {
                         </div>
                       </div>
                     ))}
+                    {reviewsInHour.map(review => {
+                      const topic = topics.find(t => t.id === review.topicId);
+                      return (
+                        <div
+                          key={review.id}
+                          className="text-xs p-1 rounded mb-1 bg-amber-900/40 border-l-3 border-amber-500 cursor-pointer hover:opacity-80"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <CalendarIcon size={10} className="text-amber-400" />
+                            <span className="font-medium truncate">Revisão</span>
+                          </div>
+                          <div className="text-gray-400 text-[10px] truncate">
+                            {topic?.name || 'Tópico'}
+                          </div>
+                          <div className="text-gray-400 text-[10px]">
+                            {review.reviewOrder}/{review.totalReviews}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}

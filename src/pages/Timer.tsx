@@ -3,7 +3,8 @@ import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { formatTime, generateId } from '@/utils/helpers';
 import type { ActivityType, StudyMode } from '@/types';
-import { Pause, Play, X } from 'lucide-react';
+import { Pause, Play, X, Plus, Trash2 } from 'lucide-react';
+import { createReviewsFromSession } from '@/services/schedulerService';
 
 const ACTIVITY_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: 'lesson', label: 'Aula' },
@@ -71,6 +72,8 @@ export function TimerPage() {
   const [questionBlank, setQuestionBlank] = useState('');
   const [questionNotes, setQuestionNotes] = useState('');
   const [pendingSessionIds, setPendingSessionIds] = useState<string[]>([]);
+  const [reviewMode, setReviewMode] = useState<'auto' | 'manual'>('auto');
+  const [manualIntervals, setManualIntervals] = useState<number[]>([1]);
 
   useEffect(() => {
     loadAllData();
@@ -360,11 +363,9 @@ export function TimerPage() {
     const correctCount = Number(questionCorrect) || 0;
     const wrongCount = Number(questionWrong) || 0;
     const blankCount = Number(questionBlank) || 0;
+    const totalQuestions = correctCount + wrongCount + blankCount;
+    const accuracy = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
 
-    // Se houver várias sessões, dividimos o resultado entre elas?
-    // Ou repetimos o resultado para cada? Normalmente em estudos se repete o bloco.
-    // O pedido do usuário sugere que ele quer concluir vários de uma vez.
-    
     for (let i = 0; i < pendingSessionIds.length; i++) {
       const sessionId = pendingSessionIds[i];
       const session = useStore.getState().studySessions.find(s => s.id === sessionId);
@@ -383,6 +384,9 @@ export function TimerPage() {
         createdAt: now,
         updatedAt: now,
       });
+
+      // Create review schedules
+      await createReviewsFromSession(session, accuracy, reviewMode, manualIntervals);
     }
 
     setQuestionCorrect('');
@@ -391,6 +395,8 @@ export function TimerPage() {
     setQuestionNotes('');
     setPendingSessionIds([]);
     setShowQuestionModal(false);
+    setReviewMode('auto');
+    setManualIntervals([1]);
     handleReset();
   };
 
@@ -875,6 +881,78 @@ export function TimerPage() {
                 className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white min-h-[96px]"
                 placeholder="Ex: dificuldade em interpretação de enunciados..."
               />
+            </div>
+
+            {/* Review Mode */}
+            <div className="mt-4 bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+              <p className="text-sm font-medium text-gray-300 mb-3">Revisão espaçada</p>
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setReviewMode('auto')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    reviewMode === 'auto'
+                      ? 'bg-white text-black'
+                      : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                  }`}
+                >
+                  Automático
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReviewMode('manual')}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    reviewMode === 'manual'
+                      ? 'bg-white text-black'
+                      : 'bg-gray-800 text-gray-400 hover:text-white border border-gray-700'
+                  }`}
+                >
+                  Manual
+                </button>
+              </div>
+              {reviewMode === 'auto' ? (
+                <p className="text-xs text-gray-500">
+                  O sistema cria revisões baseado na sua taxa de acertos.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {manualIntervals.map((interval, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-16">{idx + 1}ª revisão</span>
+                      <input
+                        type="number"
+                        value={interval}
+                        onChange={(e) => {
+                          const newIntervals = [...manualIntervals];
+                          newIntervals[idx] = Math.max(1, Number(e.target.value) || 1);
+                          setManualIntervals(newIntervals);
+                        }}
+                        className="flex-1 px-3 py-1.5 bg-gray-900 border border-gray-700 rounded-lg text-white text-sm"
+                        min={1}
+                      />
+                      <span className="text-xs text-gray-500">dias</span>
+                      {manualIntervals.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => setManualIntervals(manualIntervals.filter((_, i) => i !== idx))}
+                          className="text-gray-500 hover:text-red-400"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {manualIntervals.length < 5 && (
+                    <button
+                      type="button"
+                      onClick={() => setManualIntervals([...manualIntervals, manualIntervals[manualIntervals.length - 1] + 3])}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-white mt-1"
+                    >
+                      <Plus size={12} /> Adicionar revisão
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 mt-6">
               <Button

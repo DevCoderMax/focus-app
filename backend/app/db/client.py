@@ -65,6 +65,24 @@ class SQLiteClient:
             self._conn.executescript(sql)
             self._conn.commit()
 
+    def _migrate_review_schedules(self) -> None:
+        cursor = self._conn.execute("PRAGMA table_info(review_schedules)")
+        columns = {row[1] for row in cursor.fetchall()}
+        migrations = []
+        if "review_order" not in columns:
+            migrations.append("ALTER TABLE review_schedules ADD COLUMN review_order INTEGER NOT NULL DEFAULT 1")
+        if "total_reviews" not in columns:
+            migrations.append("ALTER TABLE review_schedules ADD COLUMN total_reviews INTEGER NOT NULL DEFAULT 1")
+        if "review_mode" not in columns:
+            migrations.append("ALTER TABLE review_schedules ADD COLUMN review_mode TEXT NOT NULL DEFAULT 'auto'")
+        for sql in migrations:
+            try:
+                self._conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
+        if migrations:
+            self._conn.commit()
+
     async def ensure_local_user(self) -> None:
         """Ensure the local user record exists (required for all local operations)."""
         now = _now()
@@ -214,6 +232,9 @@ class SQLiteClient:
               origin_session_id TEXT NOT NULL REFERENCES study_sessions(id) ON DELETE CASCADE,
               due_at TEXT NOT NULL,
               status TEXT NOT NULL CHECK(status IN ('pending', 'completed', 'overdue')),
+              review_order INTEGER NOT NULL DEFAULT 1,
+              total_reviews INTEGER NOT NULL DEFAULT 1,
+              review_mode TEXT NOT NULL DEFAULT 'auto' CHECK(review_mode IN ('auto', 'manual')),
               created_at TEXT NOT NULL,
               updated_at TEXT NOT NULL,
               deleted_at TEXT
@@ -328,6 +349,8 @@ class SQLiteClient:
             CREATE INDEX IF NOT EXISTS idx_goals_type ON goals(user_id, profile_id, goal_type);
             """
         )
+        # Migrations for existing databases
+        self._migrate_review_schedules()
         now = _now()
         with self._lock:
             self._conn.execute(

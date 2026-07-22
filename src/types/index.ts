@@ -126,6 +126,9 @@ export interface ReviewSchedule {
   originSessionId: string;
   dueAt: string;
   status: ReviewStatus;
+  reviewOrder: number;
+  totalReviews: number;
+  reviewMode: 'auto' | 'manual';
   createdAt: string;
   updatedAt: string;
   deletedAt?: string;

@@ -20,7 +20,11 @@ import {
   AlignRight,
   AlignJustify,
   Trash2,
+  Calendar as CalendarIcon,
+  X,
 } from 'lucide-react';
+import type { ReviewSchedule } from '@/types';
+import { recalculateAfterReview } from '@/services/schedulerService';
 
 export function NotesPage() {
   const {
@@ -881,16 +885,316 @@ export function QuestionsPage() {
 }
 
 export function ReviewsPage() {
-  const { loadAllData } = useStore();
+  const {
+    reviewSchedules,
+    reviewAttempts,
+    topics,
+    subjects,
+    loadAllData,
+    updateReviewSchedule,
+    addReviewAttempt,
+  } = useStore();
+
+  const [showAttemptModal, setShowAttemptModal] = useState(false);
+  const [selectedSchedule, setSelectedSchedule] = useState<ReviewSchedule | null>(null);
+  const [attemptCorrect, setAttemptCorrect] = useState('');
+  const [attemptTotal, setAttemptTotal] = useState('');
+  const [attemptDuration, setAttemptDuration] = useState('');
 
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
 
+  const topicsById = useMemo(() => new Map(topics.map(t => [t.id, t])), [topics]);
+  const subjectsById = useMemo(() => new Map(subjects.map(s => [s.id, s])), [subjects]);
+
+  const pendingReviews = useMemo(() =>
+    reviewSchedules
+      .filter(r => r.status === 'pending')
+      .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime()),
+    [reviewSchedules]
+  );
+
+  const completedReviews = useMemo(() =>
+    reviewSchedules
+      .filter(r => r.status === 'completed')
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()),
+    [reviewSchedules]
+  );
+
+  const overdueReviews = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return pendingReviews.filter(r => new Date(r.dueAt) < now);
+  }, [pendingReviews]);
+
+  const upcomingReviews = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return pendingReviews.filter(r => new Date(r.dueAt) >= now);
+  }, [pendingReviews]);
+
+  const avgAccuracy = useMemo(() => {
+    if (reviewAttempts.length === 0) return 0;
+    const sum = reviewAttempts.reduce((acc, a) => acc + a.accuracy, 0);
+    return Math.round(sum / reviewAttempts.length);
+  }, [reviewAttempts]);
+
+  const reviewsThisWeek = useMemo(() => {
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    weekStart.setHours(0, 0, 0, 0);
+    return reviewAttempts.filter(a => new Date(a.completedAt) >= weekStart).length;
+  }, [reviewAttempts]);
+
+  const handleStartAttempt = (schedule: ReviewSchedule) => {
+    setSelectedSchedule(schedule);
+    setAttemptCorrect('');
+    setAttemptTotal('');
+    setAttemptDuration('');
+    setShowAttemptModal(true);
+  };
+
+  const handleSubmitAttempt = async () => {
+    if (!selectedSchedule) return;
+    const correct = Number(attemptCorrect) || 0;
+    const total = Number(attemptTotal) || 0;
+    const duration = Number(attemptDuration) || 0;
+    if (total === 0) return;
+
+    const accuracy = (correct / total) * 100;
+    const now = new Date().toISOString();
+
+    await addReviewAttempt({
+      id: crypto.randomUUID(),
+      scheduleId: selectedSchedule.id,
+      correctCount: correct,
+      questionCount: total,
+      accuracy,
+      durationSec: duration * 60,
+      completedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    await updateReviewSchedule({ ...selectedSchedule, status: 'completed', updatedAt: now });
+
+    // Recalculate remaining reviews adaptively
+    await recalculateAfterReview(selectedSchedule, accuracy, reviewSchedules);
+
+    setShowAttemptModal(false);
+    setSelectedSchedule(null);
+    await loadAllData();
+  };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('pt-BR', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    });
+  };
+
+  const getTopicInfo = (topicId: string) => {
+    const topic = topicsById.get(topicId);
+    const subject = topic ? subjectsById.get(topic.subjectId) : null;
+    return { topicName: topic?.name || 'Tópico', subjectName: subject?.name || '' };
+  };
+
   return (
     <div className="p-8">
-      <h1 className="text-4xl font-bold mb-2">Revisões</h1>
-      <p className="text-gray-400">Funcionalidade em desenvolvimento</p>
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold mb-2">Revisões</h1>
+        <p className="text-gray-400">Acompanhe suas revisões espaçadas</p>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <p className="text-sm text-gray-400">Pendentes</p>
+          <p className="text-2xl font-bold">{pendingReviews.length}</p>
+        </div>
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <p className="text-sm text-gray-400">Atrasadas</p>
+          <p className="text-2xl font-bold text-red-400">{overdueReviews.length}</p>
+        </div>
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <p className="text-sm text-gray-400">Accuracy média</p>
+          <p className="text-2xl font-bold">{avgAccuracy}%</p>
+        </div>
+        <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+          <p className="text-sm text-gray-400">Esta semana</p>
+          <p className="text-2xl font-bold">{reviewsThisWeek}</p>
+        </div>
+      </div>
+
+      {/* Pending Reviews */}
+      {overdueReviews.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-4 text-red-400">Revisões Atrasadas</h2>
+          <div className="space-y-3">
+            {overdueReviews.map(review => {
+              const info = getTopicInfo(review.topicId);
+              return (
+                <div key={review.id} className="bg-gray-900 rounded-lg p-4 border border-red-900/50 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{info.topicName}</p>
+                    <p className="text-sm text-gray-400">{info.subjectName}</p>
+                    <p className="text-xs text-red-400 mt-1">
+                      Atrasada desde {formatDate(review.dueAt)} · {review.reviewOrder}/{review.totalReviews}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleStartAttempt(review)}
+                    className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-gray-200"
+                  >
+                    Iniciar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {upcomingReviews.length > 0 && (
+        <div className="mb-8">
+          <h2 className="text-lg font-bold mb-4">Próximas Revisões</h2>
+          <div className="space-y-3">
+            {upcomingReviews.map(review => {
+              const info = getTopicInfo(review.topicId);
+              const isToday = formatDate(review.dueAt) === formatDate(new Date().toISOString());
+              return (
+                <div key={review.id} className="bg-gray-900 rounded-lg p-4 border border-gray-800 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{info.topicName}</p>
+                    <p className="text-sm text-gray-400">{info.subjectName}</p>
+                    <p className={`text-xs mt-1 ${isToday ? 'text-amber-400' : 'text-gray-500'}`}>
+                      {isToday ? 'Hoje' : formatDate(review.dueAt)} · {review.reviewOrder}/{review.totalReviews}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleStartAttempt(review)}
+                    className="px-4 py-2 bg-white text-black rounded-lg text-sm font-medium hover:bg-gray-200"
+                  >
+                    Iniciar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {pendingReviews.length === 0 && (
+        <div className="text-center py-12 bg-gray-900 rounded-lg border border-gray-800 mb-8">
+          <CalendarIcon size={48} className="mx-auto mb-4 text-gray-600" />
+          <p className="text-gray-400">Nenhuma revisão pendente</p>
+          <p className="text-gray-500 text-sm mt-1">Revisões são criadas automaticamente ao finalizar sessões com questões.</p>
+        </div>
+      )}
+
+      {/* History */}
+      {completedReviews.length > 0 && (
+        <div>
+          <h2 className="text-lg font-bold mb-4">Histórico</h2>
+          <div className="space-y-3">
+            {completedReviews.map(review => {
+              const info = getTopicInfo(review.topicId);
+              const attempt = reviewAttempts.find(a => a.scheduleId === review.id);
+              return (
+                <div key={review.id} className="bg-gray-900 rounded-lg p-4 border border-gray-800 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{info.topicName}</p>
+                    <p className="text-sm text-gray-400">{info.subjectName}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Concluída {formatDateTime(review.updatedAt)}
+                    </p>
+                  </div>
+                  {attempt && (
+                    <div className="text-right">
+                      <p className={`text-lg font-bold ${attempt.accuracy >= 70 ? 'text-green-400' : 'text-red-400'}`}>
+                        {Math.round(attempt.accuracy)}%
+                      </p>
+                      <p className="text-xs text-gray-500">{attempt.correctCount}/{attempt.questionCount}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Attempt Modal */}
+      {showAttemptModal && selectedSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Registrar Revisão</h2>
+              <button onClick={() => setShowAttemptModal(false)} className="text-gray-400 hover:text-white">
+                <X size={20} />
+              </button>
+            </div>
+            <p className="text-sm text-gray-400 mb-4">
+              {getTopicInfo(selectedSchedule.topicId).topicName}
+            </p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Acertou</label>
+                <input
+                  type="number"
+                  value={attemptCorrect}
+                  onChange={e => setAttemptCorrect(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Total de questões</label>
+                <input
+                  type="number"
+                  value={attemptTotal}
+                  onChange={e => setAttemptTotal(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300 mb-1">Duração (minutos)</label>
+                <input
+                  type="number"
+                  value={attemptDuration}
+                  onChange={e => setAttemptDuration(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
+                  min="0"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowAttemptModal(false)}
+                className="flex-1 py-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSubmitAttempt}
+                disabled={!attemptTotal || Number(attemptTotal) === 0}
+                className="flex-1 py-2 rounded-lg bg-white text-black font-medium hover:bg-gray-200 disabled:opacity-40"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

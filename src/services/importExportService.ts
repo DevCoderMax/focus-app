@@ -87,6 +87,9 @@ const ReviewScheduleSchema = z.object({
   originSessionId: z.string(),
   dueAt: z.string(),
   status: z.enum(['pending', 'completed', 'overdue']),
+  reviewOrder: z.number().optional().default(1),
+  totalReviews: z.number().optional().default(1),
+  reviewMode: z.enum(['auto', 'manual']).optional().default('auto'),
   createdAt: z.string(),
   updatedAt: z.string().optional(),
 });
