@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
+import { TopicSelector } from '@/components/TopicSelector';
 import { formatDate, generateId } from '@/utils/helpers';
 import type { ActivityPlanItem, ActivityPlanMaterialType } from '@/types';
 
@@ -43,26 +44,6 @@ export function AulasPage() {
   useEffect(() => {
     loadAllData();
   }, [loadAllData]);
-
-  const topicsForSubject = useMemo(() => {
-    if (!subjectId) return [];
-    return topics.filter((topic) => topic.subjectId === subjectId);
-  }, [topics, subjectId]);
-
-  const topicsForFilterSubject = useMemo(() => {
-    if (!filterSubjectId) return topics;
-    return topics.filter((topic) => topic.subjectId === filterSubjectId);
-  }, [topics, filterSubjectId]);
-
-  const subtopicsForTopic = useMemo(() => {
-    if (!topicId) return [];
-    return subtopics.filter((st) => st.topicId === topicId);
-  }, [subtopics, topicId]);
-
-  const subtopicsForFilterTopic = useMemo(() => {
-    if (!filterTopicId) return subtopics;
-    return subtopics.filter((st) => st.topicId === filterTopicId);
-  }, [subtopics, filterTopicId]);
 
   const subtopicsById = useMemo(() => new Map(subtopics.map((st) => [st.id, st])), [subtopics]);
 
@@ -153,61 +134,18 @@ export function AulasPage() {
       <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
         <h2 className="text-lg font-bold mb-4">Novo conteúdo</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Matéria</label>
-            <select
-              value={subjectId}
-              onChange={(event) => {
-                setSubjectId(event.target.value);
-                setTopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Selecione</option>
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
-            <select
-              value={topicId}
-              onChange={(event) => {
-                setTopicId(event.target.value);
-                setSubtopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-              disabled={!subjectId}
-            >
-              <option value="">Selecione</option>
-              {topicsForSubject.map((topic) => (
-                <option key={topic.id} value={topic.id}>
-                  {topic.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico (Opcional)</label>
-            <select
-              value={subtopicId}
-              onChange={(event) => setSubtopicId(event.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-              disabled={!topicId}
-            >
-              <option value="">Nenhum</option>
-              {subtopicsForTopic.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <TopicSelector
+            mode="form"
+            layout="bare"
+            subjectId={subjectId}
+            topicId={topicId}
+            subtopicId={subtopicId}
+            onChange={({ subjectId, topicId, subtopicId }) => {
+              setSubjectId(subjectId);
+              setTopicId(topicId);
+              setSubtopicId(subtopicId);
+            }}
+          />
 
           <Input
             label="Título"
@@ -258,59 +196,18 @@ export function AulasPage() {
       <div className="bg-gray-900 rounded-lg p-6 mb-6 border border-gray-800">
         <h2 className="text-lg font-bold mb-4">Filtros</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Matéria</label>
-            <select
-              value={filterSubjectId}
-              onChange={(event) => {
-                setFilterSubjectId(event.target.value);
-                setFilterTopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todas</option>
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
-            <select
-              value={filterTopicId}
-              onChange={(event) => {
-                setFilterTopicId(event.target.value);
-                setFilterSubtopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todos</option>
-              {topicsForFilterSubject.map((topic) => (
-                <option key={topic.id} value={topic.id}>
-                  {topic.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico</label>
-            <select
-              value={filterSubtopicId}
-              onChange={(event) => setFilterSubtopicId(event.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todos</option>
-              {subtopicsForFilterTopic.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <TopicSelector
+            mode="filter"
+            layout="bare"
+            subjectId={filterSubjectId}
+            topicId={filterTopicId}
+            subtopicId={filterSubtopicId}
+            onChange={({ subjectId, topicId, subtopicId }) => {
+              setFilterSubjectId(subjectId);
+              setFilterTopicId(topicId);
+              setFilterSubtopicId(subtopicId);
+            }}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Status</label>

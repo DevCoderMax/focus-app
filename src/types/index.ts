@@ -238,6 +238,23 @@ export interface TopicMetrics {
   trend: TrendDirection;
   // Strategic
   improvementPotential: boolean; // 60-75% zone - best ROI
+  // Drill-down per subtopic (only populated for topics with question history)
+  subtopics: SubtopicMetrics[];
+}
+
+// Per-subtopic breakdown shown when a topic row is expanded.
+// The synthetic "Geral" bucket (subtopicId === null) holds questions
+// logged directly on the topic without a subtopic.
+export interface SubtopicMetrics {
+  subtopicId: string | null;
+  subtopicName: string;
+  totalQuestions: number;
+  correctCount: number;
+  wrongCount: number;
+  blankCount: number;
+  accuracyPercent: number;
+  confidenceIndex: number;
+  strength: TopicStrength;
 }
 
 

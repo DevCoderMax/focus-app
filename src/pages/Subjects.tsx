@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
-import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, X, GripVertical } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ChevronDown, ChevronRight, Check, Upload, FileJson, GripVertical } from 'lucide-react';
 import { generateId } from '@/utils/helpers';
 import type { Subject, Topic, Subtopic } from '@/types';
+import { Modal } from '@/components/Modal';
 import { getAppStateForProfile } from '@/services/apiService';
 import {
   DndContext,
@@ -859,15 +860,25 @@ export function SubjectsPage() {
         </DndContext>
       )}
 
-      {showImportModal && (
-        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-3xl max-h-[80vh] overflow-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Importar matérias e tópicos</h2>
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                Fechar
-              </Button>
-            </div>
+      <Modal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        title="Importar matérias e tópicos"
+        size="3xl"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowImportModal(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleImportSelections}
+              disabled={Object.values(selectedImports).every((v) => !v)}
+            >
+              Importar selecionados
+            </Button>
+          </div>
+        }
+      >
             <div className="mb-4">
               <Input
                 label="Buscar matéria ou tópico"
@@ -923,40 +934,41 @@ export function SubjectsPage() {
                 })}
               </div>
             )}
-            <div className="flex justify-end gap-3 mt-6">
-              <Button variant="ghost" onClick={() => setShowImportModal(false)}>
-                Cancelar
-              </Button>
-              <Button
-                onClick={handleImportSelections}
-                disabled={Object.values(selectedImports).every((v) => !v)}
-              >
-                Importar selecionados
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Import Package Modal */}
-      {showPackageModal && (
-        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <FileJson size={24} />
-                Importar Pacote
-              </h2>
-              <Button variant="ghost" size="sm" onClick={() => {
-                setShowPackageModal(false);
-                setPackageJson('');
-                setPackageError('');
-                setPackageSuccess('');
-              }}>
-                <X size={20} />
-              </Button>
-            </div>
-            
+      <Modal
+        open={showPackageModal}
+        onClose={() => {
+          setShowPackageModal(false);
+          setPackageJson('');
+          setPackageError('');
+          setPackageSuccess('');
+        }}
+        title={
+          <span className="flex items-center gap-2">
+            <FileJson size={24} />
+            Importar Pacote
+          </span>
+        }
+        size="2xl"
+        footer={
+          <div className="flex gap-3">
+            <Button onClick={handleImportPackage} className="flex-1">
+              <Upload size={16} className="mr-2" />
+              Importar
+            </Button>
+            <Button variant="ghost" onClick={() => {
+              setShowPackageModal(false);
+              setPackageJson('');
+              setPackageError('');
+              setPackageSuccess('');
+            }}>
+              Cancelar
+            </Button>
+          </div>
+        }
+      >
             <div className="space-y-4">
               <div className="rounded-xl border border-gray-800 bg-black/35 p-4">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -1041,25 +1053,8 @@ export function SubjectsPage() {
                   {packageSuccess}
                 </div>
               )}
-
-              <div className="flex gap-3 pt-4">
-                <Button onClick={handleImportPackage} className="flex-1">
-                  <Upload size={16} className="mr-2" />
-                  Importar
-                </Button>
-                <Button variant="ghost" onClick={() => {
-                  setShowPackageModal(false);
-                  setPackageJson('');
-                  setPackageError('');
-                  setPackageSuccess('');
-                }}>
-                  Cancelar
-                </Button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

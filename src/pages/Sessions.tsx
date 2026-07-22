@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
 import { formatDuration, formatDate } from '@/utils/helpers';
-import { Clock, Trash2, Plus, X } from 'lucide-react';
+import { Clock, Trash2, Plus } from 'lucide-react';
 import type { StudySession, ActivityType, QuestionHistoryEntry } from '@/types';
 import { createReviewsFromSession } from '@/services/schedulerService';
+import { TopicSelector } from '@/components/TopicSelector';
+import { Modal } from '@/components/Modal';
+import { Button } from '@/components/Button';
 
 function toInputDate(date: Date) {
   const year = date.getFullYear();
@@ -76,26 +79,6 @@ export function SessionsPage() {
   const subtopicsById = useMemo(() => {
     return new Map(subtopics.map((st) => [st.id, st]));
   }, [subtopics]);
-
-  const topicsForFilter = useMemo(() => {
-    if (!subjectId) return topics;
-    return topics.filter((topic) => topic.subjectId === subjectId);
-  }, [topics, subjectId]);
-
-  const subtopicsForFilter = useMemo(() => {
-    if (!topicId) return subtopics;
-    return subtopics.filter((st) => st.topicId === topicId);
-  }, [subtopics, topicId]);
-
-  const topicsForManual = useMemo(() => {
-    if (!manualSubjectId) return [];
-    return topics.filter((topic) => topic.subjectId === manualSubjectId);
-  }, [topics, manualSubjectId]);
-
-  const subtopicsForManual = useMemo(() => {
-    if (!manualTopicId) return [];
-    return subtopics.filter((st) => st.topicId === manualTopicId);
-  }, [subtopics, manualTopicId]);
 
   const handleManualSubmit = async () => {
     if (!manualTopicId || !manualDate || !manualStartTime || !manualEndTime) return;
@@ -228,57 +211,18 @@ export function SessionsPage() {
               className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Matéria</label>
-            <select
-              value={subjectId}
-              onChange={(event) => {
-                setSubjectId(event.target.value);
-                setTopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todas</option>
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Tópico</label>
-            <select
-              value={topicId}
-              onChange={(event) => {
-                setTopicId(event.target.value);
-                setSubtopicId('');
-              }}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todos</option>
-              {topicsForFilter.map((topic) => (
-                <option key={topic.id} value={topic.id}>
-                  {topic.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Subtópico</label>
-            <select
-              value={subtopicId}
-              onChange={(event) => setSubtopicId(event.target.value)}
-              className="w-full px-4 py-2 bg-gray-900 border border-gray-800 rounded-lg text-true-white"
-            >
-              <option value="">Todos</option>
-              {subtopicsForFilter.map((st) => (
-                <option key={st.id} value={st.id}>
-                  {st.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <TopicSelector
+            mode="filter"
+            layout="bare"
+            subjectId={subjectId}
+            topicId={topicId}
+            subtopicId={subtopicId}
+            onChange={({ subjectId, topicId, subtopicId }) => {
+              setSubjectId(subjectId);
+              setTopicId(topicId);
+              setSubtopicId(subtopicId);
+            }}
+          />
         </div>
       </div>
 
@@ -339,67 +283,36 @@ export function SessionsPage() {
       )}
 
       {/* Manual Session Modal */}
-      {showManualForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold">Nova sessão manual</h2>
-              <button onClick={() => setShowManualForm(false)} className="text-gray-400 hover:text-white">
-                <X size={20} />
-              </button>
-            </div>
-
+      <Modal
+        open={showManualForm}
+        onClose={() => setShowManualForm(false)}
+        title="Nova sessão manual"
+        size="md"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="ghost" onClick={() => setShowManualForm(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleManualSubmit} disabled={!manualTopicId}>
+              Salvar
+            </Button>
+          </div>
+        }
+      >
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Matéria</label>
-                <select
-                  value={manualSubjectId}
-                  onChange={(e) => {
-                    setManualSubjectId(e.target.value);
-                    setManualTopicId('');
-                    setManualSubtopicId('');
-                  }}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
-                >
-                  <option value="">Selecione...</option>
-                  {subjects.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Tópico</label>
-                <select
-                  value={manualTopicId}
-                  onChange={(e) => {
-                    setManualTopicId(e.target.value);
-                    setManualSubtopicId('');
-                  }}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
-                  disabled={!manualSubjectId}
-                >
-                  <option value="">Selecione...</option>
-                  {topicsForManual.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Subtópico (opcional)</label>
-                <select
-                  value={manualSubtopicId}
-                  onChange={(e) => setManualSubtopicId(e.target.value)}
-                  className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm"
-                  disabled={!manualTopicId}
-                >
-                  <option value="">Nenhum</option>
-                  {subtopicsForManual.map((st) => (
-                    <option key={st.id} value={st.id}>{st.name}</option>
-                  ))}
-                </select>
-              </div>
+              <TopicSelector
+                mode="form"
+                layout="stack"
+                size="sm"
+                subjectId={manualSubjectId}
+                topicId={manualTopicId}
+                subtopicId={manualSubtopicId}
+                onChange={({ subjectId, topicId, subtopicId }) => {
+                  setManualSubjectId(subjectId);
+                  setManualTopicId(topicId);
+                  setManualSubtopicId(subtopicId);
+                }}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Tipo de atividade</label>
@@ -579,25 +492,7 @@ export function SessionsPage() {
                 </div>
               </div>
             </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowManualForm(false)}
-                className="flex-1 py-2 rounded-lg border border-gray-700 text-gray-400 hover:text-white transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleManualSubmit}
-                disabled={!manualTopicId}
-                className="flex-1 py-2 rounded-lg bg-white text-black font-medium hover:bg-gray-200 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Salvar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

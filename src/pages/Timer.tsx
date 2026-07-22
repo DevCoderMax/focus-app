@@ -5,6 +5,7 @@ import { formatTime, generateId } from '@/utils/helpers';
 import type { ActivityType, StudyMode } from '@/types';
 import { Pause, Play, X, Plus, Trash2 } from 'lucide-react';
 import { createReviewsFromSession } from '@/services/schedulerService';
+import { Modal } from '@/components/Modal';
 
 const ACTIVITY_OPTIONS: { value: ActivityType; label: string }[] = [
   { value: 'lesson', label: 'Aula' },
@@ -450,7 +451,10 @@ export function TimerPage() {
                 <label className="block text-sm text-gray-400 mb-1">🎵 Estilo ao estudar</label>
                 <select
                   value={selectedStudyMusic}
-                  onChange={(e) => setSelectedStudyMusic(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedStudyMusic(e.target.value);
+                    setMusicStudyStyle(e.target.value || null);
+                  }}
                   className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
                 >
                   <option value="">Selecione...</option>
@@ -469,7 +473,10 @@ export function TimerPage() {
                 <label className="block text-sm text-gray-400 mb-1">☕ Estilo na pausa</label>
                 <select
                   value={selectedBreakMusic}
-                  onChange={(e) => setSelectedBreakMusic(e.target.value)}
+                  onChange={(e) => {
+                    setSelectedBreakMusic(e.target.value);
+                    setMusicBreakStyle(e.target.value || null);
+                  }}
                   className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
                 >
                   <option value="">Selecione...</option>
@@ -781,9 +788,14 @@ export function TimerPage() {
           <p className="text-xs text-gray-600 mt-6">Pressione ESC para sair</p>
         </div>
       )}
-      {showPhaseConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-sm text-center">
+      <Modal
+        open={showPhaseConfirm}
+        onClose={() => {}}
+        size="sm"
+        closeOnBackdrop={false}
+        closeOnEsc={false}
+      >
+          <div className="text-center">
             {pendingPhase === 'pomodoro' ? (
               <>
                 <div className="text-4xl mb-4">🎯</div>
@@ -831,18 +843,37 @@ export function TimerPage() {
               </>
             )}
           </div>
-        </div>
-      )}
+      </Modal>
 
-      {showQuestionModal && (
-        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-lg">
-            <div className="mb-4">
-              <h2 className="text-xl font-bold">Registrar questões</h2>
-              <p className="text-sm text-gray-400">
-                Informe o resultado da sessão de questões para acompanhar seu progresso.
-              </p>
-            </div>
+      <Modal
+        open={showQuestionModal}
+        onClose={() => {
+          setShowQuestionModal(false);
+          setPendingSessionIds([]);
+          handleReset();
+        }}
+        title="Registrar questões"
+        size="lg"
+        closeOnBackdrop={false}
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowQuestionModal(false);
+                setPendingSessionIds([]);
+                handleReset();
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button onClick={handleSaveQuestionHistory}>Salvar</Button>
+          </div>
+        }
+      >
+            <p className="text-sm text-gray-400 -mt-1 mb-4">
+              Informe o resultado da sessão de questões para acompanhar seu progresso.
+            </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">Certas</label>
@@ -956,22 +987,7 @@ export function TimerPage() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowQuestionModal(false);
-                  setPendingSessionIds([]);
-                  handleReset();
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button onClick={handleSaveQuestionHistory}>Salvar</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      </Modal>
     </>
   );
 }

@@ -164,6 +164,37 @@ function removeCascade(state: AppState, type: 'subject' | 'topic' | 'subtopic', 
   };
 }
 
+const MUSIC_PREFS_KEY = 'focus.musicPrefs';
+
+function loadMusicPrefs(): {
+  musicStudyStyle: string | null;
+  musicBreakStyle: string | null;
+  musicAutoPlay: boolean;
+} {
+  try {
+    const saved = window.localStorage.getItem(MUSIC_PREFS_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return {
+        musicStudyStyle: parsed.musicStudyStyle ?? null,
+        musicBreakStyle: parsed.musicBreakStyle ?? null,
+        musicAutoPlay: parsed.musicAutoPlay ?? false,
+      };
+    }
+  } catch {}
+  return { musicStudyStyle: null, musicBreakStyle: null, musicAutoPlay: false };
+}
+
+function saveMusicPrefs(prefs: {
+  musicStudyStyle: string | null;
+  musicBreakStyle: string | null;
+  musicAutoPlay: boolean;
+}) {
+  try {
+    window.localStorage.setItem(MUSIC_PREFS_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+
 export const useStore = create<AppState>((set, get) => ({
   subjects: [],
   topics: [],
@@ -188,12 +219,31 @@ export const useStore = create<AppState>((set, get) => ({
   timerStartedAt: null,
   
   // Music control
-  musicStudyStyle: null,
-  musicBreakStyle: null,
-  musicAutoPlay: false,
-  setMusicStudyStyle: (style) => set({ musicStudyStyle: style }),
-  setMusicBreakStyle: (style) => set({ musicBreakStyle: style }),
-  setMusicAutoPlay: (enabled) => set({ musicAutoPlay: enabled }),
+  ...loadMusicPrefs(),
+  setMusicStudyStyle: (style) => {
+    set({ musicStudyStyle: style });
+    saveMusicPrefs({
+      musicStudyStyle: style,
+      musicBreakStyle: get().musicBreakStyle,
+      musicAutoPlay: get().musicAutoPlay,
+    });
+  },
+  setMusicBreakStyle: (style) => {
+    set({ musicBreakStyle: style });
+    saveMusicPrefs({
+      musicStudyStyle: get().musicStudyStyle,
+      musicBreakStyle: style,
+      musicAutoPlay: get().musicAutoPlay,
+    });
+  },
+  setMusicAutoPlay: (enabled) => {
+    set({ musicAutoPlay: enabled });
+    saveMusicPrefs({
+      musicStudyStyle: get().musicStudyStyle,
+      musicBreakStyle: get().musicBreakStyle,
+      musicAutoPlay: enabled,
+    });
+  },
   setMusicPlaylist: (playlistId) => {
     // This will be handled by MusicPlayer component listening to this state
     window.dispatchEvent(new CustomEvent('music-set-playlist', { detail: { playlistId } }));

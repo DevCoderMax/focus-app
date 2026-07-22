@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Clock, Hash } from 'lucide-react';
+import { Clock, Hash } from 'lucide-react';
 import type { Goal } from '@/types';
+import { Modal } from '@/components/Modal';
+import { Button } from '@/components/Button';
 
 interface GoalFormProps {
   goal?: Goal | null;
@@ -57,21 +59,23 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-[#111] border border-[#222] rounded-xl w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-[#222]">
-          <h3 className="text-white font-medium">
-            {goal ? 'Editar Meta' : 'Nova Meta'}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1 text-gray-500 hover:text-white transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      open
+      onClose={onClose}
+      title={goal ? 'Editar Meta' : 'Nova Meta'}
+      size="md"
+      footer={
+        <div className="flex gap-3">
+          <Button variant="ghost" onClick={onClose} className="flex-1">
+            Cancelar
+          </Button>
+          <Button type="submit" form="goal-form" className="flex-1">
+            {goal ? 'Salvar' : 'Criar Meta'}
+          </Button>
         </div>
-        
-        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+      }
+    >
+        <form id="goal-form" onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm text-gray-400 mb-1">Título *</label>
             <input
@@ -83,7 +87,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               required
             />
           </div>
-          
+
           <div>
             <label className="block text-sm text-gray-400 mb-1">Descrição</label>
             <textarea
@@ -94,7 +98,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               placeholder="Opcional"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm text-gray-400 mb-1">Tipo de meta *</label>
             <div className="grid grid-cols-2 gap-2">
@@ -115,7 +119,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               ))}
             </div>
           </div>
-          
+
           <div className={`grid gap-4 ${goalType === 'study_time' ? 'grid-cols-2' : 'grid-cols-1'}`}>
             <div>
               <label className="block text-sm text-gray-400 mb-1">Meta *</label>
@@ -130,7 +134,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
                 required
               />
             </div>
-            
+
             {goalType === 'study_time' && (
               <div>
                 <label className="block text-sm text-gray-400 mb-1">Unidade</label>
@@ -145,7 +149,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               </div>
             )}
           </div>
-          
+
           <div>
             <label className="block text-sm text-gray-400 mb-1">Período</label>
             <div className="flex gap-2">
@@ -165,7 +169,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               ))}
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm text-gray-400 mb-1">Data limite (opcional)</label>
             <input
@@ -175,24 +179,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
               className="w-full bg-[#222] border border-[#333] rounded-lg px-3 py-2 text-white focus:outline-none focus:border-white/30"
             />
           </div>
-          
-          <div className="flex gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2 border border-[#333] rounded-lg text-gray-400 hover:text-white hover:border-[#444] transition-colors"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              className="flex-1 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
-            >
-              {goal ? 'Salvar' : 'Criar Meta'}
-            </button>
-          </div>
         </form>
-      </div>
-    </div>
+    </Modal>
   );
 }

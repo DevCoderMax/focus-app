@@ -1,7 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(grep -vE \"node_modules|dist/|\\\\.map$\")",
+      "Bash(npx tsc *)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(cat)",
+      "Bash(sed -n '30,481p' Placeholder.tsx)",
+      "Bash(sed -n '483,922p' Placeholder.tsx)",
+      "Bash(sed -n '924,1486p' Placeholder.tsx)",
+      "Bash(rm Placeholder.tsx)",
+      "Bash(npm run *)"
     ]
   }
 }

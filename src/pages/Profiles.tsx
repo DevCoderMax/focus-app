@@ -4,8 +4,9 @@ import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { AvatarSvg } from '@/components/AvatarSvg';
 import type { Profile } from '@/types';
+import { Modal } from '@/components/Modal';
 import { useNavigate } from 'react-router-dom';
-import { Pencil, Trash2, Plus, X } from 'lucide-react';
+import { Pencil, Trash2, Plus } from 'lucide-react';
 
 // Avatar options (IDs only - SVGs are in AvatarSvg component)
 const AVATAR_OPTIONS = [
@@ -161,20 +162,39 @@ export function ProfilesPage() {
         )}
 
         {/* Create/Edit Modal */}
-        {showModal && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-gray-900 border border-gray-700 rounded-2xl p-8 w-full max-w-lg shadow-2xl relative">
-              <button 
-                onClick={closeModal}
-                className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors"
-              >
-                <X size={24} />
-              </button>
+        <Modal
+          open={showModal}
+          onClose={closeModal}
+          title={editingProfile ? 'Editar perfil' : 'Criar novo perfil'}
+          size="lg"
+          footer={
+            <div className="flex flex-col gap-3">
+              <Button onClick={handleSave} className="w-full py-4 text-lg">
+                {editingProfile ? 'Salvar Alterações' : 'Criar Perfil'}
+              </Button>
 
-              <h2 className="text-2xl font-bold mb-6 text-center">
-                {editingProfile ? 'Editar perfil' : 'Criar novo perfil'}
-              </h2>
-
+              <div className="flex gap-3">
+                {editingProfile && (
+                  <Button
+                    variant="ghost"
+                    onClick={handleDelete}
+                    className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                  >
+                    <Trash2 size={18} className="mr-2" />
+                    Excluir
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  onClick={closeModal}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          }
+        >
               {/* Avatar Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-400 mb-3">
@@ -208,36 +228,7 @@ export function ProfilesPage() {
                 onChange={(event) => setProfileName(event.target.value)}
                 placeholder="Ex: João, Estudos, Concurso..."
               />
-
-              {/* Actions */}
-              <div className="flex flex-col gap-3 mt-6">
-                <Button onClick={handleSave} className="w-full py-4 text-lg">
-                  {editingProfile ? 'Salvar Alterações' : 'Criar Perfil'}
-                </Button>
-                
-                <div className="flex gap-3">
-                  {editingProfile && (
-                    <Button
-                      variant="ghost"
-                      onClick={handleDelete}
-                      className="flex-1 border-red-500/50 text-red-400 hover:bg-red-500/10"
-                    >
-                      <Trash2 size={18} className="mr-2" />
-                      Excluir
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    onClick={closeModal}
-                    className="flex-1"
-                  >
-                    Cancelar
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        </Modal>
 
       </div>
     </div>

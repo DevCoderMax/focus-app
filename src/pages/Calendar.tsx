@@ -10,12 +10,12 @@ import {
   Clock,
   BookOpen,
   Trash2,
-  X,
   Play,
   Timer
 } from 'lucide-react';
 import { generateId, formatTime } from '@/utils/helpers';
 import type { StudySession } from '@/types';
+import { Modal } from '@/components/Modal';
 
 interface CalendarEvent {
   id: string;
@@ -404,16 +404,22 @@ export function CalendarPage() {
       </div>
 
       {/* Add Event Modal */}
-      {isAddingEvent && (
-        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Novo Evento de Estudo</h2>
-              <Button variant="ghost" size="sm" onClick={resetForm}>
-                <X size={20} />
-              </Button>
-            </div>
-            
+      <Modal
+        open={isAddingEvent}
+        onClose={resetForm}
+        title="Novo Evento de Estudo"
+        size="md"
+        footer={
+          <div className="flex gap-3">
+            <Button onClick={handleAddEvent} className="flex-1">
+              Criar Evento
+            </Button>
+            <Button variant="ghost" onClick={resetForm}>
+              Cancelar
+            </Button>
+          </div>
+        }
+      >
             <div className="space-y-4">
               <Input
                 label="Título do evento"
@@ -532,32 +538,35 @@ export function CalendarPage() {
                   Recorrente (repetir toda semana)
                 </label>
               </div>
-              
-              <div className="flex gap-3 pt-4">
-                <Button onClick={handleAddEvent} className="flex-1">
-                  Criar Evento
-                </Button>
-                <Button variant="ghost" onClick={resetForm}>
-                  Cancelar
-                </Button>
-              </div>
             </div>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Event Details Modal */}
-      {selectedEvent && (
-        <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-md">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">{selectedEvent.title}</h2>
-              <Button variant="ghost" size="sm" onClick={() => setSelectedEvent(null)}>
-                <X size={20} />
+      <Modal
+        open={!!selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        title={selectedEvent?.title}
+        size="md"
+        footer={
+          selectedEvent && (
+            <div className="flex gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => handleDeleteEvent(selectedEvent.id)}
+                className="flex-1 text-red-400 hover:text-red-300"
+              >
+                <Trash2 size={16} className="mr-2" />
+                Excluir
+              </Button>
+              <Button variant="ghost" onClick={() => setSelectedEvent(null)}>
+                Fechar
               </Button>
             </div>
-            
-            <div className="space-y-3 mb-6">
+          )
+        }
+      >
+            {selectedEvent && (
+            <div className="space-y-3">
               <div className="flex items-center gap-2 text-gray-300">
                 <CalendarIcon size={16} />
                 <span>{DAYS_OF_WEEK[selectedEvent.dayOfWeek]}</span>
@@ -586,23 +595,8 @@ export function CalendarPage() {
                 </div>
               )}
             </div>
-            
-            <div className="flex gap-3">
-              <Button 
-                variant="ghost" 
-                onClick={() => handleDeleteEvent(selectedEvent.id)}
-                className="flex-1 text-red-400 hover:text-red-300"
-              >
-                <Trash2 size={16} className="mr-2" />
-                Excluir
-              </Button>
-              <Button variant="ghost" onClick={() => setSelectedEvent(null)}>
-                Fechar
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
+      </Modal>
     </div>
   );
 }

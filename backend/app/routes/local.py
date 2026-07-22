@@ -587,7 +587,19 @@ async def get_goals_analytics(
         [user["id"], profile_id],
     )
     sessions = sessions_result.rows
-    
+
+    # Fetch topics and subjects (to resolve most/least studied subject)
+    topics_result = await db.execute(
+        "SELECT id, subject_id, name FROM topics WHERE user_id = ? AND profile_id = ? AND deleted_at IS NULL",
+        [user["id"], profile_id],
+    )
+    topic_to_subject = {t["id"]: t.get("subject_id") for t in topics_result.rows}
+    subjects_result = await db.execute(
+        "SELECT id, name FROM subjects WHERE user_id = ? AND profile_id = ? AND deleted_at IS NULL",
+        [user["id"], profile_id],
+    )
+    subject_names = {s["id"]: s.get("name") for s in subjects_result.rows}
+
     # Fetch question history
     qh_result = await db.execute(
         "SELECT * FROM question_history WHERE user_id = ? AND profile_id = ? AND deleted_at IS NULL",
@@ -653,8 +665,10 @@ async def get_goals_analytics(
     thirty_days_ago = today - timedelta(days=30)
     active_days_30 = sum(1 for d in session_dates if d >= thirty_days_ago)
     consistency_score = min(100, int((active_days_30 / 30) * 100 * (1 + current_streak * 0.1)))
-    
-    # Calculate average minutes per day (last 30 days)
+
+    # Calculate average minutes per day (last 30 days).
+    # Divide by the number of days actually observed (capped at 30) instead of a
+    # flat 30, so users who just started aren't unfairly penalized.
     total_minutes_30 = 0
     for s in sessions:
         try:
@@ -663,7 +677,13 @@ async def get_goals_analytics(
                 total_minutes_30 += s.get("duration_sec", 0) / 60
         except:
             pass
-    avg_minutes_per_day = total_minutes_30 / 30 if thirty_days_ago else 0
+    if session_dates:
+        first_date = min(session_dates)
+        observed_days = min(30, (today - first_date).days + 1)
+        observed_days = max(1, observed_days)
+    else:
+        observed_days = 30
+    avg_minutes_per_day = total_minutes_30 / observed_days
     
     # Calculate blank answer rate
     total_correct = sum(q.get("correct_count", 0) for q in question_history)
@@ -690,7 +710,7 @@ async def get_goals_analytics(
     # Calculate motivation score
     frequency_score = min(100, active_days_30 * 3.33)
     duration_score = min(100, avg_minutes_per_day * 2)
-    difficulty_scores = [s.get("difficulty", 3) for s in sessions if s.get("difficulty")]
+    difficulty_scores = [s["difficulty"] for s in sessions if s.get("difficulty")]
     difficulty_score = (sum(difficulty_scores) / len(difficulty_scores) * 20) if difficulty_scores else 50
     improvement_score = 50  # Would need more complex calculation
     
@@ -742,9 +762,138 @@ async def get_goals_analytics(
         except:
             pass
     
-    # Most studied subject (would need to join with topics)
-    most_studied_subject = "Nenhuma matéria ainda"
-    
+    # Weekly report: current week vs last week (local timezone, Monday start)
+    week_start = today - timedelta(days=today.weekday())
+    last_week_start = week_start - timedelta(days=7)
+    next_week_start = week_start + timedelta(days=7)
+
+    def _in_range(iso_field: str, row: dict, start, end) -> bool:
+        try:
+            d = parse_local_date(row[iso_field])
+            return start <= d < end
+        except Exception:
+            return False
+
+    this_week_sessions = [s for s in sessions if _in_range("started_at", s, week_start, next_week_start)]
+    last_week_sessions = [s for s in sessions if _in_range("started_at", s, last_week_start, week_start)]
+
+    week_minutes = round(sum(s.get("duration_sec", 0) for s in this_week_sessions) / 60, 1)
+    last_week_minutes = round(sum(s.get("duration_sec", 0) for s in last_week_sessions) / 60, 1)
+    week_sessions_count = len(this_week_sessions)
+    last_week_sessions_count = len(last_week_sessions)
+
+    def _accuracy(qhs: list) -> float:
+        c = sum(q.get("correct_count", 0) for q in qhs)
+        w = sum(q.get("wrong_count", 0) for q in qhs)
+        b = sum(q.get("blank_count", 0) for q in qhs)
+        total = c + w + b
+        return (c / total * 100) if total > 0 else 0
+
+    this_week_qh = [q for q in question_history if _in_range("created_at", q, week_start, next_week_start)]
+    last_week_qh = [q for q in question_history if _in_range("created_at", q, last_week_start, week_start)]
+    week_accuracy = _accuracy(this_week_qh)
+    last_week_accuracy = _accuracy(last_week_qh)
+
+    # Average session length (last 30 days) — distinct from averageMinutesPerDay
+    sessions_last_30 = sum(
+        1 for s in sessions
+        if _in_range("started_at", s, thirty_days_ago, today + timedelta(days=1))
+    )
+    avg_session_minutes = round(total_minutes_30 / sessions_last_30, 1) if sessions_last_30 else 0
+
+    # Most/least studied subject (by minutes, last 30 days) + mode & weekday split
+    minutes_by_subject: dict[str, float] = {}
+    mode_minutes: dict[str, float] = {}
+    weekend_minutes = 0.0
+    weekday_minutes = 0.0
+    for s in sessions:
+        try:
+            s_date = parse_local_date(s["started_at"])
+        except Exception:
+            continue
+        if s_date < thirty_days_ago:
+            continue
+        mins = s.get("duration_sec", 0) / 60
+        subject_id = topic_to_subject.get(s.get("topic_id"))
+        if subject_id:
+            minutes_by_subject[subject_id] = minutes_by_subject.get(subject_id, 0) + mins
+        mode = s.get("mode") or "N/A"
+        mode_minutes[mode] = mode_minutes.get(mode, 0) + mins
+        if s_date.weekday() >= 5:
+            weekend_minutes += mins
+        else:
+            weekday_minutes += mins
+
+    if minutes_by_subject:
+        most_id = max(minutes_by_subject, key=minutes_by_subject.get)
+        least_id = min(minutes_by_subject, key=minutes_by_subject.get)
+        most_studied_subject = subject_names.get(most_id) or "Nenhuma matéria ainda"
+        least_studied_subject = (
+            subject_names.get(least_id) or "N/A"
+        ) if len(minutes_by_subject) > 1 else "N/A"
+    else:
+        most_studied_subject = "Nenhuma matéria ainda"
+        least_studied_subject = "N/A"
+
+    favorite_mode = max(mode_minutes, key=mode_minutes.get) if mode_minutes else "N/A"
+
+    def period_window(period: str, start_date_iso: str | None, end_date_iso: str | None):
+        """Return [start, end) local dates for a goal's active period, clamped to
+        the goal's own startDate/endDate when present. `end` is exclusive."""
+        if period == "daily":
+            start = today
+            end = today + timedelta(days=1)
+        elif period == "weekly":
+            start = today - timedelta(days=today.weekday())
+            end = start + timedelta(days=7)
+        elif period == "monthly":
+            start = today.replace(day=1)
+            # first day of next month
+            end = (start.replace(day=28) + timedelta(days=4)).replace(day=1)
+        else:  # "total" or unknown: from goal start (or epoch) through tomorrow
+            start = None
+            end = today + timedelta(days=1)
+        # Clamp to the goal's own date range
+        if start_date_iso:
+            try:
+                gs = parse_local_date(start_date_iso)
+                start = gs if start is None else max(start, gs)
+            except Exception:
+                pass
+        if end_date_iso:
+            try:
+                ge = parse_local_date(end_date_iso) + timedelta(days=1)
+                end = min(end, ge)
+            except Exception:
+                pass
+        return start, end
+
+    def sum_minutes(start, end) -> float:
+        total = 0.0
+        for s in sessions:
+            try:
+                d = parse_local_date(s["started_at"])
+            except Exception:
+                continue
+            if (start is None or d >= start) and d < end:
+                total += s.get("duration_sec", 0) / 60
+        return total
+
+    def sum_questions(start, end) -> int:
+        total = 0
+        for q in question_history:
+            try:
+                d = parse_local_date(q["created_at"])
+            except Exception:
+                continue
+            if (start is None or d >= start) and d < end:
+                total += (
+                    q.get("correct_count", 0)
+                    + q.get("wrong_count", 0)
+                    + q.get("blank_count", 0)
+                )
+        return total
+
     # Fetch and update goals with calculated currentValue
     goals_result = await db.execute(
         "SELECT * FROM goals WHERE user_id = ? AND profile_id = ? AND deleted_at IS NULL",
@@ -757,100 +906,33 @@ async def get_goals_analytics(
         goal_type = goal["goal_type"]
         unit = goal.get("unit", "min")
         period = goal.get("period", "daily")
-        
-        # Calculate currentValue based on actual data
+
+        # Calculate currentValue based on actual data within the goal's period,
+        # clamped to its own start/end dates.
+        win_start, win_end = period_window(period, goal.get("start_date"), goal.get("end_date"))
         if goal_type == "study_time":
-            if period == "daily":
-                # Minutes studied today only (resets at day boundary)
-                today_minutes = 0
-                for s in sessions:
-                    try:
-                        s_date = parse_local_date(s["started_at"])
-                        if s_date == today:
-                            today_minutes += s.get("duration_sec", 0) / 60
-                    except:
-                        pass
-                current_value = round(today_minutes, 1)
-                # Convert to hours if unit is h
-                if unit == "h":
-                    current_value = round(current_value / 60, 1)
-            elif period == "weekly":
-                # Total minutes in current week
-                week_start = today - timedelta(days=today.weekday())
-                weekly_minutes = 0
-                for s in sessions:
-                    try:
-                        s_date = parse_local_date(s["started_at"])
-                        if s_date >= week_start:
-                            weekly_minutes += s.get("duration_sec", 0) / 60
-                    except:
-                        pass
-                current_value = round(weekly_minutes, 1)
-                if unit == "h":
-                    current_value = round(current_value / 60, 1)
-            elif period == "monthly":
-                # Total minutes in current month
-                month_start = today.replace(day=1)
-                monthly_minutes = 0
-                for s in sessions:
-                    try:
-                        s_date = parse_local_date(s["started_at"])
-                        if s_date >= month_start:
-                            monthly_minutes += s.get("duration_sec", 0) / 60
-                    except:
-                        pass
-                current_value = round(monthly_minutes, 1)
-                if unit == "h":
-                    current_value = round(current_value / 60, 1)
-            else:
-                current_value = goal.get("current_value", 0)
+            minutes = sum_minutes(win_start, win_end)
+            current_value = round(minutes / 60, 1) if unit == "h" else round(minutes, 1)
         elif goal_type == "volume":
-            # Count questions in the period
-            if period == "daily":
-                # Questions answered today only (resets at day boundary)
-                today_questions = 0
-                for q in question_history:
-                    try:
-                        q_date = parse_local_date(q["created_at"])
-                        if q_date == today:
-                            today_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
-                    except:
-                        pass
-                current_value = today_questions
-            elif period == "weekly":
-                week_start = today - timedelta(days=today.weekday())
-                weekly_questions = 0
-                for q in question_history:
-                    try:
-                        q_date = parse_local_date(q["created_at"])
-                        if q_date >= week_start:
-                            weekly_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
-                    except:
-                        pass
-                current_value = weekly_questions
-            elif period == "monthly":
-                month_start = today.replace(day=1)
-                monthly_questions = 0
-                for q in question_history:
-                    try:
-                        q_date = parse_local_date(q["created_at"])
-                        if q_date >= month_start:
-                            monthly_questions += q.get("correct_count", 0) + q.get("wrong_count", 0)
-                    except:
-                        pass
-                current_value = monthly_questions
-            else:
-                current_value = goal.get("current_value", 0)
+            current_value = sum_questions(win_start, win_end)
         else:
             current_value = goal.get("current_value", 0)
-        
-        # Update goal in database if currentValue changed
-        if current_value != goal.get("current_value", 0):
+
+        # Determine completion status (only toggle between active/completed;
+        # leave 'abandoned'/'expired' untouched)
+        target = goal.get("target_value") or 0
+        status = goal["status"]
+        if status in ("active", "completed"):
+            reached = target > 0 and current_value >= target
+            status = "completed" if reached else "active"
+
+        # Persist current_value and/or status if either changed
+        if current_value != goal.get("current_value", 0) or status != goal["status"]:
             await db.execute(
-                "UPDATE goals SET current_value = ?, updated_at = ? WHERE id = ?",
-                [current_value, now_iso(), goal_id],
+                "UPDATE goals SET current_value = ?, status = ?, updated_at = ? WHERE id = ?",
+                [current_value, status, now_iso(), goal_id],
             )
-        
+
         # Convert snake_case to camelCase for response
         goals.append({
             "id": goal_id,
@@ -865,10 +947,13 @@ async def get_goals_analytics(
             "period": period,
             "startDate": goal["start_date"],
             "endDate": goal.get("end_date"),
-            "status": goal["status"],
+            "status": status,
             "createdAt": goal["created_at"],
             "updatedAt": goal["updated_at"],
         })
+
+    goals_total = len(goals)
+    goals_met = sum(1 for g in goals if g["status"] == "completed")
     
     return {
         "coachingMessage": coaching,
@@ -878,7 +963,7 @@ async def get_goals_analytics(
             "longestStreak": longest_streak,
             "averageMinutesPerDay": round(avg_minutes_per_day, 1),
             "daysStudiedLast30": active_days_30,
-            "consistencyScore": min(100, consistency_score),
+            "consistencyScore": consistency_score,
             "weeklyPattern": weekly_pattern,
             "monthlyTrend": "stable",
             "daysSinceLastSession": days_since_last,
@@ -910,24 +995,27 @@ async def get_goals_analytics(
         },
         "habits": {
             "preferredTime": "N/A",
-            "averageSessionMinutes": round(avg_minutes_per_day, 1),
-            "favoriteMode": "N/A",
+            "averageSessionMinutes": avg_session_minutes,
+            "favoriteMode": favorite_mode,
             "mostStudiedSubject": most_studied_subject,
-            "leastStudiedSubject": "N/A",
+            "leastStudiedSubject": least_studied_subject,
             "studyDaysPercentage": round(active_days_30 / 30 * 100, 1),
-            "weekendVsWeekday": {"weekend": 0, "weekday": 0},
+            "weekendVsWeekday": {
+                "weekend": round(weekend_minutes, 1),
+                "weekday": round(weekday_minutes, 1),
+            },
         },
         "weeklyReport": {
-            "totalMinutes": round(total_minutes_30 / 4, 1),
-            "totalSessions": len(sessions),
-            "goalsMet": 0,
-            "goalsTotal": 0,
+            "totalMinutes": week_minutes,
+            "totalSessions": week_sessions_count,
+            "goalsMet": goals_met,
+            "goalsTotal": goals_total,
             "topAchievement": "Nenhuma atividade ainda",
             "improvementArea": "Comece a estudar para ver progresso",
             "comparedToLastWeek": {
-                "minutesChange": 0,
-                "sessionsChange": 0,
-                "accuracyChange": 0,
+                "minutesChange": round(week_minutes - last_week_minutes, 1),
+                "sessionsChange": week_sessions_count - last_week_sessions_count,
+                "accuracyChange": round(week_accuracy - last_week_accuracy, 1),
             },
         },
     }

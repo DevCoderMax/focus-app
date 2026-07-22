@@ -8,7 +8,8 @@ import {
   HelpCircle,
   Calendar,
   Settings,
-  Clock,
+  History,
+  RefreshCw,
   ChevronLeft,
   ChevronRight,
   Pause,
@@ -29,10 +30,10 @@ const navigation = [
   { name: 'Matérias', href: '/subjects', icon: BookOpen },
   { name: 'Anotações', href: '/notes', icon: FileText },
   { name: 'Questões', href: '/questions', icon: HelpCircle },
-  { name: 'Revisões', href: '/reviews', icon: Calendar },
+  { name: 'Revisões', href: '/reviews', icon: RefreshCw },
   { name: 'Calendário', href: '/calendar', icon: Calendar },
-  { name: 'Sessões', href: '/study', icon: Clock },
-  { name: 'Temporizador', href: '/timer', icon: Clock },
+  { name: 'Sessões', href: '/study', icon: History },
+  { name: 'Temporizador', href: '/timer', icon: TimerIcon },
   { name: 'Novidades', href: '/releases', icon: Rocket },
   { name: 'Configurações', href: '/settings', icon: Settings },
 ];
@@ -96,7 +97,7 @@ export function Layout({ children }: LayoutProps) {
   const mobileNavigation: MobileNavItem[] = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Matérias', href: '/subjects', icon: BookOpen },
-    { name: 'Sessões', href: '/study', icon: Clock },
+    { name: 'Sessões', href: '/study', icon: History },
     { name: 'Temporizador', href: '/timer', icon: TimerIcon },
     { name: 'Mais', icon: MoreHorizontal, isMore: true },
   ];
@@ -137,16 +138,18 @@ export function Layout({ children }: LayoutProps) {
               <Link
                 key={item.name}
                 to={item.href}
+                title={isCollapsed ? item.name : undefined}
                 className={`
-                  flex items-center gap-3 px-4 py-3 rounded-lg
+                  flex items-center gap-3 py-3 rounded-lg
                   transition-all duration-200
+                  ${isCollapsed ? 'justify-center px-0' : 'px-4'}
                   ${isActive
                     ? 'bg-true-white text-true-black'
                     : 'text-gray-400 hover:text-true-white hover:bg-gray-900'
                   }
                 `}
               >
-                <Icon size={20} />
+                <Icon size={20} className="flex-shrink-0" />
                 {!isCollapsed && <span className="font-medium">{item.name}</span>}
               </Link>
             );

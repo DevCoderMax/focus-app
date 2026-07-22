@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '@/store';
-import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain, X, Flame, Award } from 'lucide-react';
+import { Clock, Target, TrendingUp, Calendar, TrendingDown, Minus, AlertTriangle, Zap, Brain, Flame, Award, ChevronRight, ChevronDown } from 'lucide-react';
 import {
   BarChart,
   Bar,
@@ -11,7 +11,8 @@ import {
   Line,
   Tooltip,
 } from 'recharts';
-import type { TopicMetrics } from '@/types';
+import type { TopicMetrics, SubtopicMetrics } from '@/types';
+import { Modal } from '@/components/Modal';
 
 // Calculate confidence index: weighted by volume
 // forca = percentual_acerto * (total_questoes / 10)
@@ -55,6 +56,7 @@ export function DashboardPage() {
   const {
     studySessions,
     topics,
+    subtopics,
     subjects,
     reviewAttempts,
     questionHistory,
@@ -64,6 +66,19 @@ export function DashboardPage() {
   const [chartRangeDays, setChartRangeDays] = useState(7);
   const [showDetailedMetrics, setShowDetailedMetrics] = useState(false);
   const [showStreakDetails, setShowStreakDetails] = useState(false);
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set());
+
+  const toggleTopicExpansion = (topicId: string) => {
+    setExpandedTopics((prev) => {
+      const next = new Set(prev);
+      if (next.has(topicId)) {
+        next.delete(topicId);
+      } else {
+        next.add(topicId);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadAllData();
@@ -204,6 +219,7 @@ export function DashboardPage() {
         previousAccuracy: 0,
         trend: 'stable',
         improvementPotential: false,
+        subtopics: [],
       });
     });
 
@@ -271,8 +287,63 @@ export function DashboardPage() {
       metrics.trend = getTrendDirection(metrics.recentAccuracy, metrics.previousAccuracy);
     });
 
+    // Per-subtopic breakdown for each topic.
+    // Questions without a subtopicId are grouped into a synthetic "Geral" bucket
+    // so the subtopic rows always sum back to the topic total.
+    const GERAL_KEY = '__geral__';
+    const subtopicAgg = new Map<string, Map<string, SubtopicMetrics>>();
+
+    questionHistory.forEach((entry) => {
+      if (!metricsMap.has(entry.topicId)) return;
+
+      const key = entry.subtopicId ?? GERAL_KEY;
+      const byTopic = subtopicAgg.get(entry.topicId) ?? new Map<string, SubtopicMetrics>();
+
+      const existing = byTopic.get(key) ?? {
+        subtopicId: entry.subtopicId ?? null,
+        subtopicName: entry.subtopicId
+          ? subtopics.find((s) => s.id === entry.subtopicId)?.name ?? 'Subtópico removido'
+          : 'Geral (sem subtópico)',
+        totalQuestions: 0,
+        correctCount: 0,
+        wrongCount: 0,
+        blankCount: 0,
+        accuracyPercent: 0,
+        confidenceIndex: 0,
+        strength: 'little_trained' as TopicMetrics['strength'],
+      };
+
+      existing.totalQuestions += entry.correctCount + entry.wrongCount + entry.blankCount;
+      existing.correctCount += entry.correctCount;
+      existing.wrongCount += entry.wrongCount;
+      existing.blankCount += entry.blankCount;
+
+      byTopic.set(key, existing);
+      subtopicAgg.set(entry.topicId, byTopic);
+    });
+
+    subtopicAgg.forEach((byTopic, topicId) => {
+      const metrics = metricsMap.get(topicId);
+      if (!metrics) return;
+
+      const list = Array.from(byTopic.values());
+      list.forEach((sub) => {
+        const answered = sub.correctCount + sub.wrongCount;
+        sub.accuracyPercent = answered > 0 ? Math.round((sub.correctCount / answered) * 100) : 0;
+        sub.confidenceIndex = calculateConfidenceIndex(sub.accuracyPercent, sub.totalQuestions);
+        sub.strength = getTopicStrength(sub.accuracyPercent, sub.totalQuestions);
+      });
+
+      // Highest-volume subtopics first; keep the "Geral" bucket last.
+      metrics.subtopics = list.sort((a, b) => {
+        if (a.subtopicId === null) return 1;
+        if (b.subtopicId === null) return -1;
+        return b.totalQuestions - a.totalQuestions;
+      });
+    });
+
     return Array.from(metricsMap.values()).filter(m => m.totalQuestions > 0);
-  }, [topics, subjects, questionHistory]);
+  }, [topics, subtopics, subjects, questionHistory]);
 
   // Sorted topics by different criteria
   const weakTopics = useMemo(() =>
@@ -427,75 +498,165 @@ export function DashboardPage() {
     }
   };
 
-  // Single topic row component
-  const TopicRow = ({ metrics }: { metrics: TopicMetrics }) => {
+  // Get accuracy color (shared by topic and subtopic rows)
+  const getAccuracyColor = (accuracyPercent: number) =>
+    accuracyPercent >= 80 ? 'text-green-400' :
+      accuracyPercent >= 60 ? 'text-yellow-400' :
+        accuracyPercent > 0 ? 'text-red-400' : 'text-gray-400';
+
+  // Compact row shown for each subtopic when a topic is expanded
+  const SubtopicRow = ({ metrics }: { metrics: SubtopicMetrics }) => {
     const badge = getStrengthBadge(metrics.strength);
 
     return (
-      <div className="flex items-center justify-between p-4 bg-gray-800 rounded-lg hover:bg-gray-750 transition-colors">
+      <div className="flex items-center justify-between py-2.5 pl-6 pr-4 bg-gray-850 rounded-lg border-l-2 border-gray-700">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <p className="font-medium truncate">{metrics.topicName}</p>
-            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${badge.bg} ${badge.text}`}>
+          <div className="flex items-center gap-2">
+            <p className={`text-sm truncate ${metrics.subtopicId === null ? 'italic text-gray-400' : 'text-gray-200'}`}>
+              {metrics.subtopicName}
+            </p>
+            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${badge.bg} ${badge.text}`}>
               {badge.icon}
               {metrics.strength === 'strong' && 'Forte'}
               {metrics.strength === 'intermediate' && 'Intermediário'}
               {metrics.strength === 'weak' && 'Fraco'}
               {metrics.strength === 'little_trained' && 'Pouco treinado'}
             </span>
-            {metrics.isWeakness && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-900/30 text-red-400">
-                <AlertTriangle className="w-3 h-3" />
-                Fraqueza
-              </span>
-            )}
-            {metrics.improvementPotential && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-900/30 text-blue-400">
-                <Zap className="w-3 h-3" />
-                Alto potencial
-              </span>
-            )}
           </div>
-          <p className="text-sm text-gray-400 truncate">{metrics.subjectName}</p>
         </div>
 
         <div className="flex items-center gap-6 ml-4">
-          {/* Basic stats */}
-          <div className="text-center hidden md:block">
-            <p className="text-lg font-bold">{metrics.totalQuestions}</p>
-            <p className="text-xs text-gray-500">Questões</p>
+          <div className="text-center hidden md:block min-w-[48px]">
+            <p className="text-sm font-bold">{metrics.totalQuestions}</p>
+            <p className="text-[10px] text-gray-500">Questões</p>
           </div>
-
-          <div className="text-center hidden md:block">
-            <p className="text-lg font-bold text-green-400">{metrics.correctCount}</p>
-            <p className="text-xs text-gray-500">Acertos</p>
+          <div className="text-center hidden md:block min-w-[48px]">
+            <p className="text-sm font-bold text-green-400">{metrics.correctCount}</p>
+            <p className="text-[10px] text-gray-500">Acertos</p>
           </div>
-
-          <div className="text-center hidden md:block">
-            <p className="text-lg font-bold text-red-400">{metrics.wrongCount}</p>
-            <p className="text-xs text-gray-500">Erros</p>
+          <div className="text-center hidden md:block min-w-[48px]">
+            <p className="text-sm font-bold text-red-400">{metrics.wrongCount}</p>
+            <p className="text-[10px] text-gray-500">Erros</p>
           </div>
-
-          {/* Main accuracy */}
           <div className="text-center min-w-[60px]">
-            <div className="flex items-center justify-center gap-1">
-              <p className={`text-2xl font-bold ${metrics.accuracyPercent >= 80 ? 'text-green-400' :
-                  metrics.accuracyPercent >= 60 ? 'text-yellow-400' :
-                    metrics.accuracyPercent > 0 ? 'text-red-400' : 'text-gray-400'
-                }`}>
-                {metrics.accuracyPercent}%
-              </p>
-              {getTrendIcon(metrics.trend)}
-            </div>
-            <p className="text-xs text-gray-500">Precisão</p>
+            <p className={`text-lg font-bold ${getAccuracyColor(metrics.accuracyPercent)}`}>
+              {metrics.accuracyPercent}%
+            </p>
+            <p className="text-[10px] text-gray-500">Precisão</p>
           </div>
-
-          {/* Confidence Index */}
           <div className="text-center min-w-[60px] hidden lg:block">
-            <p className="text-lg font-bold">{metrics.confidenceIndex}</p>
-            <p className="text-xs text-gray-500">Índice confiança</p>
+            <p className="text-sm font-bold">{metrics.confidenceIndex}</p>
+            <p className="text-[10px] text-gray-500">Índice confiança</p>
           </div>
         </div>
+      </div>
+    );
+  };
+
+  // Single topic row component.
+  // When `expandable` is set, a chevron toggles a nested per-subtopic breakdown.
+  const TopicRow = ({ metrics, expandable = false }: { metrics: TopicMetrics; expandable?: boolean }) => {
+    const badge = getStrengthBadge(metrics.strength);
+    const canExpand = expandable && metrics.subtopics.length > 0;
+    const isExpanded = canExpand && expandedTopics.has(metrics.topicId);
+
+    return (
+      <div>
+        <div
+          className={`flex items-center justify-between p-4 bg-gray-800 rounded-lg transition-colors ${
+            canExpand ? 'cursor-pointer hover:bg-gray-750' : 'hover:bg-gray-750'
+          } ${isExpanded ? 'rounded-b-none' : ''}`}
+          onClick={canExpand ? () => toggleTopicExpansion(metrics.topicId) : undefined}
+          role={canExpand ? 'button' : undefined}
+          tabIndex={canExpand ? 0 : undefined}
+          aria-expanded={canExpand ? isExpanded : undefined}
+          onKeyDown={
+            canExpand
+              ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleTopicExpansion(metrics.topicId);
+                  }
+                }
+              : undefined
+          }
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {canExpand && (
+              <span className="text-gray-500 shrink-0">
+                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </span>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <p className="font-medium truncate">{metrics.topicName}</p>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs ${badge.bg} ${badge.text}`}>
+                  {badge.icon}
+                  {metrics.strength === 'strong' && 'Forte'}
+                  {metrics.strength === 'intermediate' && 'Intermediário'}
+                  {metrics.strength === 'weak' && 'Fraco'}
+                  {metrics.strength === 'little_trained' && 'Pouco treinado'}
+                </span>
+                {metrics.isWeakness && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-red-900/30 text-red-400">
+                    <AlertTriangle className="w-3 h-3" />
+                    Fraqueza
+                  </span>
+                )}
+                {metrics.improvementPotential && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs bg-blue-900/30 text-blue-400">
+                    <Zap className="w-3 h-3" />
+                    Alto potencial
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-400 truncate">{metrics.subjectName}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-6 ml-4">
+            {/* Basic stats */}
+            <div className="text-center hidden md:block">
+              <p className="text-lg font-bold">{metrics.totalQuestions}</p>
+              <p className="text-xs text-gray-500">Questões</p>
+            </div>
+
+            <div className="text-center hidden md:block">
+              <p className="text-lg font-bold text-green-400">{metrics.correctCount}</p>
+              <p className="text-xs text-gray-500">Acertos</p>
+            </div>
+
+            <div className="text-center hidden md:block">
+              <p className="text-lg font-bold text-red-400">{metrics.wrongCount}</p>
+              <p className="text-xs text-gray-500">Erros</p>
+            </div>
+
+            {/* Main accuracy */}
+            <div className="text-center min-w-[60px]">
+              <div className="flex items-center justify-center gap-1">
+                <p className={`text-2xl font-bold ${getAccuracyColor(metrics.accuracyPercent)}`}>
+                  {metrics.accuracyPercent}%
+                </p>
+                {getTrendIcon(metrics.trend)}
+              </div>
+              <p className="text-xs text-gray-500">Precisão</p>
+            </div>
+
+            {/* Confidence Index */}
+            <div className="text-center min-w-[60px] hidden lg:block">
+              <p className="text-lg font-bold">{metrics.confidenceIndex}</p>
+              <p className="text-xs text-gray-500">Índice confiança</p>
+            </div>
+          </div>
+        </div>
+
+        {isExpanded && (
+          <div className="space-y-1 p-2 bg-gray-800/40 rounded-b-lg border-t border-gray-700">
+            {metrics.subtopics.map((sub) => (
+              <SubtopicRow key={sub.subtopicId ?? '__geral__'} metrics={sub} />
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -503,29 +664,17 @@ export function DashboardPage() {
   return (
     <div className="p-8">
       {/* Streak details popup */}
-      {showStreakDetails && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
-          onClick={() => setShowStreakDetails(false)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg border border-gray-800 bg-gray-900 p-6 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-xl font-bold">
-                <Flame className="text-orange-500" size={22} />
-                Sequência de estudos
-              </h2>
-              <button
-                onClick={() => setShowStreakDetails(false)}
-                className="text-gray-500 hover:text-gray-300"
-                aria-label="Fechar"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
+      <Modal
+        open={showStreakDetails}
+        onClose={() => setShowStreakDetails(false)}
+        title={
+          <span className="flex items-center gap-2">
+            <Flame className="text-orange-500" size={22} />
+            Sequência de estudos
+          </span>
+        }
+        size="md"
+      >
             <div className="space-y-3">
               <div className="flex items-center justify-between rounded-lg bg-gray-800/60 px-4 py-3">
                 <span className="flex items-center gap-2 text-gray-300">
@@ -555,9 +704,7 @@ export function DashboardPage() {
             <p className="mt-4 text-xs text-gray-500">
               A sequência conta dias consecutivos com pelo menos uma sessão de estudo. Estudar hoje mantém a sequência viva.
             </p>
-          </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Header */}
       <div className="mb-8">
@@ -822,7 +969,10 @@ export function DashboardPage() {
 
               {/* All topics */}
               <div>
-                <h3 className="text-lg font-semibold mb-3">Todos os tópicos</h3>
+                <h3 className="text-lg font-semibold mb-1">Todos os tópicos</h3>
+                <p className="text-sm text-gray-400 mb-3">
+                  Clique em um tópico para ver o desempenho por subtópico
+                </p>
                 <div className="space-y-2">
                   {topicMetrics
                     .sort((a, b) => {
@@ -832,7 +982,7 @@ export function DashboardPage() {
                       return b.confidenceIndex - a.confidenceIndex;
                     })
                     .map((m) => (
-                      <TopicRow key={m.topicId} metrics={m} />
+                      <TopicRow key={m.topicId} metrics={m} expandable />
                     ))}
                 </div>
               </div>

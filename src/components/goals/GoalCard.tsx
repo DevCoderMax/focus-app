@@ -33,11 +33,16 @@ export function GoalCard({ goal, onEdit, onDelete, animated = true }: GoalCardPr
   };
 
   const getUnitLabel = () => {
+    const periodSuffix =
+      goal.period === 'daily' ? '/dia'
+      : goal.period === 'weekly' ? '/semana'
+      : goal.period === 'monthly' ? '/mês'
+      : '';
     switch (goal.unit) {
       case 'min':
-        return 'min/dia';
+        return `min${periodSuffix}`;
       case 'h':
-        return 'h/dia';
+        return `h${periodSuffix}`;
       case 'count':
         return 'questões';
       default:
