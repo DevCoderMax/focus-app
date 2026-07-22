@@ -39,6 +39,17 @@ interface AppState {
   timerSeconds: number;
   timerIsRunning: boolean;
   timerStartedAt: string | null;
+  
+  // Music control
+  musicStudyStyle: string | null;
+  musicBreakStyle: string | null;
+  musicAutoPlay: boolean;
+  setMusicStudyStyle: (style: string | null) => void;
+  setMusicBreakStyle: (style: string | null) => void;
+  setMusicAutoPlay: (enabled: boolean) => void;
+  setMusicPlaylist: (playlistId: string) => void;
+  playMusic: () => void;
+  pauseMusic: () => void;
   isLoading: boolean;
   error: string | null;
 
@@ -174,6 +185,24 @@ export const useStore = create<AppState>((set, get) => ({
   timerSeconds: 0,
   timerIsRunning: false,
   timerStartedAt: null,
+  
+  // Music control
+  musicStudyStyle: null,
+  musicBreakStyle: null,
+  musicAutoPlay: false,
+  setMusicStudyStyle: (style) => set({ musicStudyStyle: style }),
+  setMusicBreakStyle: (style) => set({ musicBreakStyle: style }),
+  setMusicAutoPlay: (enabled) => set({ musicAutoPlay: enabled }),
+  setMusicPlaylist: (playlistId) => {
+    // This will be handled by MusicPlayer component listening to this state
+    window.dispatchEvent(new CustomEvent('music-set-playlist', { detail: { playlistId } }));
+  },
+  playMusic: () => {
+    window.dispatchEvent(new CustomEvent('music-play'));
+  },
+  pauseMusic: () => {
+    window.dispatchEvent(new CustomEvent('music-pause'));
+  },
   isLoading: false,
   error: null,
 

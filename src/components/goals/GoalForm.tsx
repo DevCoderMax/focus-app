@@ -24,7 +24,7 @@ export function GoalForm({ goal, onSubmit, onClose }: GoalFormProps) {
   const [description, setDescription] = useState(goal?.description || '');
   const [goalType, setGoalType] = useState<Goal['goalType']>(goal?.goalType || 'study_time');
   const [targetValue, setTargetValue] = useState(goal?.targetValue?.toString() || '');
-  const [unit, setUnit] = useState(goal?.unit || 'minutos');
+  const [unit, setUnit] = useState(goal?.unit || 'min');
   const [period, setPeriod] = useState<Goal['period']>(goal?.period || 'weekly');
   const [endDate, setEndDate] = useState(goal?.endDate?.split('T')[0] || '');
 

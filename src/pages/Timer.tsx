@@ -32,6 +32,14 @@ export function TimerPage() {
     addQuestionHistory,
     incrementActivityPlanProgress,
     markActivityPlanCompleted,
+    musicStudyStyle,
+    musicBreakStyle,
+    musicAutoPlay,
+    setMusicStudyStyle,
+    setMusicBreakStyle,
+    setMusicAutoPlay,
+    setMusicPlaylist,
+    playMusic,
   } = useStore();
   const [subjectId, setSubjectId] = useState('');
   const [selectedTopicIds, setSelectedTopicIds] = useState<string[]>([]);
@@ -52,6 +60,12 @@ export function TimerPage() {
   const [phase, setPhase] = useState<PomodoroPhase>('idle');
   const [phaseTimeLeft, setPhaseTimeLeft] = useState(0);
   const [pomodoroCount, setPomodoroCount] = useState(0);
+  const [focusedSeconds, setFocusedSeconds] = useState(0); // Only pomodoro time
+  const [showPhaseConfirm, setShowPhaseConfirm] = useState(false);
+  const [pendingPhase, setPendingPhase] = useState<PomodoroPhase | null>(null);
+  const [overtimeSeconds, setOvertimeSeconds] = useState(0);
+  const [selectedStudyMusic, setSelectedStudyMusic] = useState(musicStudyStyle || '');
+  const [selectedBreakMusic, setSelectedBreakMusic] = useState(musicBreakStyle || '');
   const [questionCorrect, setQuestionCorrect] = useState('');
   const [questionWrong, setQuestionWrong] = useState('');
   const [questionBlank, setQuestionBlank] = useState('');
@@ -62,23 +76,81 @@ export function TimerPage() {
     loadAllData();
   }, [loadAllData]);
 
+  // Beep sound
+  const playBeep = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = 800;
+      oscillator.type = 'sine';
+      gainNode.gain.value = 0.3;
+      
+      oscillator.start();
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      oscillator.stop(audioContext.currentTime + 0.2);
+    } catch (e) {
+      // Audio not available
+    }
+  };
+
   // Phase timer countdown
   useEffect(() => {
     if (phase === 'idle' || !isRunning) return;
     
     const interval = setInterval(() => {
+      // Track focused time (only during pomodoro phase)
+      if (phase === 'pomodoro') {
+        setFocusedSeconds((prev) => prev + 1);
+      }
+      
       setPhaseTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Phase finished
-          handlePhaseEnd();
-          return 0;
+        if (prev <= 0) {
+          // Phase finished - beep 3 times (only once, not repeatedly)
+          if (!showPhaseConfirm) {
+            playBeep();
+            setTimeout(() => playBeep(), 300);
+            setTimeout(() => playBeep(), 600);
+            
+            if (phase === 'pomodoro') {
+              // Pomodoro done - show options but KEEP RUNNING
+              const nextPhase = (pomodoroCount + 1) % 4 === 0 ? 'longBreak' : 'shortBreak';
+              setPendingPhase(nextPhase);
+              setShowPhaseConfirm(true);
+            } else {
+              // Break done - show popup to continue
+              playBeep();
+              setTimeout(() => playBeep(), 300);
+              setTimeout(() => playBeep(), 600);
+              setPendingPhase('pomodoro');
+              setShowPhaseConfirm(true);
+              return 0;
+            }
+          }
+          // Keep timer at 0, overtime is tracked separately
+          return 0; 
         }
         return prev - 1;
       });
     }, 1000);
     
     return () => clearInterval(interval);
-  }, [phase, isRunning]);
+  }, [phase, isRunning, pomodoroCount, settings, showPhaseConfirm]);
+
+  // Overtime counter (only when popup is shown during pomodoro)
+  useEffect(() => {
+    if (!showPhaseConfirm || phase !== 'pomodoro') return;
+    
+    const interval = setInterval(() => {
+      setOvertimeSeconds((prev) => prev + 1);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [showPhaseConfirm, phase]);
 
 
   useEffect(() => {
@@ -141,24 +213,40 @@ export function TimerPage() {
   }, [activityPlanItems, selectedTopicIds, selectedSubtopicIds]);
 
   const canStart = !!subjectId && selectedTopicIds.length > 0 && !!activityType;
-  const canFinish = isRunning || timerSeconds > 0;
+  const canFinish = isRunning || timerSeconds > 0 || focusedSeconds > 0;
 
-  const handlePhaseEnd = () => {
-    if (phase === 'pomodoro') {
-      const newCount = pomodoroCount + 1;
-      setPomodoroCount(newCount);
-      // After 4 pomodoros, take a long break
-      if (newCount % 4 === 0) {
-        setPhase('longBreak');
-        setPhaseTimeLeft((settings?.longBreakMinutes ?? 15) * 60);
-      } else {
-        setPhase('shortBreak');
-        setPhaseTimeLeft((settings?.shortBreakMinutes ?? 5) * 60);
-      }
-    } else {
-      // After break, start new pomodoro
-      setPhase('pomodoro');
-      setPhaseTimeLeft((settings?.pomodoroMinutes ?? 25) * 60);
+  const handleStartBreak = () => {
+    // User accepts the break - stop focused counting
+    setShowPhaseConfirm(false);
+    const nextPhase = pendingPhase || 'shortBreak';
+    setPendingPhase(null);
+    setOvertimeSeconds(0);
+    const newCount = pomodoroCount + 1;
+    setPomodoroCount(newCount);
+    setPhase(nextPhase);
+    setPhaseTimeLeft(nextPhase === 'longBreak' 
+      ? (settings?.longBreakMinutes ?? 15) * 60 
+      : (settings?.shortBreakMinutes ?? 5) * 60);
+    
+    // Switch to break music
+    if (musicAutoPlay && selectedBreakMusic) {
+      setMusicBreakStyle(selectedBreakMusic);
+      setMusicPlaylist(selectedBreakMusic);
+      setTimeout(() => playMusic(), 500);
+    }
+  };
+
+  const handleContinueSession = () => {
+    // User confirmed to continue after break
+    setShowPhaseConfirm(false);
+    setPendingPhase(null);
+    setPhase('pomodoro');
+    setPhaseTimeLeft((settings?.pomodoroMinutes ?? 25) * 60);
+    
+    // Switch back to study music
+    if (musicAutoPlay && selectedStudyMusic) {
+      setMusicPlaylist(selectedStudyMusic);
+      setTimeout(() => playMusic(), 500);
     }
   };
 
@@ -174,6 +262,13 @@ export function TimerPage() {
     if (phase === 'idle') {
       setPhase('pomodoro');
       setPhaseTimeLeft((settings?.pomodoroMinutes ?? 25) * 60);
+      
+      // Auto-play study music
+      if (musicAutoPlay && selectedStudyMusic) {
+        setMusicStudyStyle(selectedStudyMusic);
+        setMusicPlaylist(selectedStudyMusic);
+        setTimeout(() => playMusic(), 500);
+      }
     }
     
     if (focusMode) {
@@ -195,6 +290,10 @@ export function TimerPage() {
     setPhase('idle');
     setPhaseTimeLeft(0);
     setPomodoroCount(0);
+    setFocusedSeconds(0);
+    setShowPhaseConfirm(false);
+    setPendingPhase(null);
+    setOvertimeSeconds(0);
     resetTimer();
   };
 
@@ -202,6 +301,7 @@ export function TimerPage() {
     if (!canStart || !startedAt) return;
     const endedAt = new Date().toISOString();
     const sessionIds: string[] = [];
+    const studyTimeSec = phase !== 'idle' ? focusedSeconds : timerSeconds;
 
     // Se temos subtópicos selecionados, criamos sessões para eles
     // Se não, criamos sessões para os tópicos selecionados
@@ -220,7 +320,7 @@ export function TimerPage() {
           activityType,
           startedAt,
           endedAt,
-          durationSec: timerSeconds,
+          durationSec: studyTimeSec,
           mode,
           difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
           createdAt: now,
@@ -238,7 +338,7 @@ export function TimerPage() {
           activityType,
           startedAt,
           endedAt,
-          durationSec: timerSeconds,
+          durationSec: studyTimeSec,
           mode,
           difficulty: difficulty ? (difficulty as 1 | 2 | 3 | 4 | 5) : undefined,
           createdAt: now,
@@ -319,6 +419,65 @@ export function TimerPage() {
           <p className="text-gray-400">
             Configure a sessão e acompanhe o tempo para registrar seus estudos.
           </p>
+        </div>
+
+        {/* Music Settings */}
+        <div className="bg-gray-900 rounded-lg p-6 border border-gray-800 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-bold">Música</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={musicAutoPlay}
+                onChange={(e) => setMusicAutoPlay(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-700 bg-gray-800 text-purple-500"
+              />
+              <span className="text-sm text-gray-400">Iniciar com a sessão</span>
+            </label>
+          </div>
+          
+          {musicAutoPlay && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">🎵 Estilo ao estudar</label>
+                <select
+                  value={selectedStudyMusic}
+                  onChange={(e) => setSelectedStudyMusic(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="concentracao">🎯 Concentração</option>
+                  <option value="foco">🧠 Foco</option>
+                  <option value="lofi">🌙 Lo-Fi</option>
+                  <option value="lofi-live">📺 Lo-Fi Live</option>
+                  <option value="deep">🌊 Deep</option>
+                  <option value="classica">🎻 Clássica</option>
+                  <option value="natureza">🌿 Natureza</option>
+                  <option value="inspiracao">✨ Inspiração</option>
+                  <option value="relax">😌 Relax</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">☕ Estilo na pausa</label>
+                <select
+                  value={selectedBreakMusic}
+                  onChange={(e) => setSelectedBreakMusic(e.target.value)}
+                  className="w-full px-3 py-2 bg-[#0d0d0d] border border-gray-800 rounded-lg text-white text-sm"
+                >
+                  <option value="">Selecione...</option>
+                  <option value="concentracao">🎯 Concentração</option>
+                  <option value="foco">🧠 Foco</option>
+                  <option value="lofi">🌙 Lo-Fi</option>
+                  <option value="lofi-live">📺 Lo-Fi Live</option>
+                  <option value="deep">🌊 Deep</option>
+                  <option value="classica">🎻 Clássica</option>
+                  <option value="natureza">🌿 Natureza</option>
+                  <option value="inspiracao">✨ Inspiração</option>
+                  <option value="relax">😌 Relax</option>
+                </select>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Timer Settings */}
@@ -547,6 +706,11 @@ export function TimerPage() {
               <p className="text-sm text-gray-500 mt-2">
                 {phase !== 'idle' ? 'Tempo restante' : 'Tempo decorrido'}
               </p>
+              {focusedSeconds > 0 && (
+                <p className="text-xs text-green-500 mt-1">
+                  {Math.floor(focusedSeconds / 60)}min focados
+                </p>
+              )}
               {pomodoroCount > 0 && (
                 <p className="text-xs text-gray-600 mt-1">
                   {pomodoroCount} pomodoro{pomodoroCount > 1 ? 's' : ''} hoje
@@ -609,6 +773,59 @@ export function TimerPage() {
           <p className="text-xs text-gray-600 mt-6">Pressione ESC para sair</p>
         </div>
       )}
+      {showPhaseConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-sm text-center">
+            {pendingPhase === 'pomodoro' ? (
+              <>
+                <div className="text-4xl mb-4">🎯</div>
+                <h2 className="text-xl font-bold mb-2">Hora de focar!</h2>
+                <p className="text-gray-400 mb-4">
+                  Sua pausa acabou. Bora voltar ao estudo?
+                </p>
+                <div>
+                  <button
+                    onClick={handleContinueSession}
+                    className="w-full py-3 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    Continuar sessão
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="text-4xl mb-4">
+                  {pendingPhase === 'longBreak' ? '🌴' : '☕'}
+                </div>
+                <h2 className="text-xl font-bold mb-2">Hora de descansar!</h2>
+                <p className="text-gray-400 mb-4">
+                  Você completou um pomodoro. Que tal uma pausa?
+                </p>
+                {overtimeSeconds > 0 && (
+                  <div className="mb-4 py-2 px-3 bg-white/5 rounded-lg">
+                    <p className="text-xs text-gray-500">Tempo extra</p>
+                    <p className="text-lg font-mono text-white">
+                      +{Math.floor(overtimeSeconds / 60)}:{String(overtimeSeconds % 60).padStart(2, '0')}
+                    </p>
+                  </div>
+                )}
+                <div>
+                  <button
+                    onClick={handleStartBreak}
+                    className="w-full py-3 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                  >
+                    {pendingPhase === 'longBreak' ? 'Pausa longa (15min)' : 'Pausa curta (5min)'}
+                  </button>
+                  <p className="text-xs text-gray-600 mt-3 text-center">
+                    Continue estudando para ignorar a pausa
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showQuestionModal && (
         <div className="fixed inset-0 bg-true-black/70 flex items-center justify-center z-50">
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 w-full max-w-lg">

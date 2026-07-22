@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import ReactPlayer from 'react-player';
-import { Play, Pause, Volume2, VolumeX, Music, ChevronUp, ChevronDown } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Music, ChevronUp, ChevronDown, Repeat } from 'lucide-react';
 
 interface Playlist {
   id: string;
@@ -21,7 +21,7 @@ const playlists: Playlist[] = [
       'CjB_oVeq8Lo',
       'lTRiuFIWV54',
       '7jMlHT7p08A',
-      '5qap5aO4i9A',
+      'PIhIc_ehSdU',
     ],
   },
   {
@@ -29,11 +29,12 @@ const playlists: Playlist[] = [
     name: 'Foco',
     icon: '🧠',
     videoIds: [
-      '5qap5aO4i9A',
+      '6B7PqW2NKeQ',
       'jfKfPfyJRdk',
       'lTRiuFIWV54',
       '2OEL4P1Rz04',
       'CjB_oVeq8Lo',
+      'SLS9tUa2GXI',
     ],
   },
   {
@@ -41,11 +42,8 @@ const playlists: Playlist[] = [
     name: 'Lo-Fi',
     icon: '🌙',
     videoIds: [
-      'jfKfPfyJRdk',
-      '5qap5aO4i9A',
-      '4xDzrJKXOOY',
-      '7jMlHT7p08A',
-      'lTRiuFIWV54',
+      'oAGWFop_Hx8',
+      'BTYAsjAVa3I',
     ],
   },
   {
@@ -63,11 +61,13 @@ const playlists: Playlist[] = [
     name: 'Deep',
     icon: '🌊',
     videoIds: [
+      'gdyegr9Yqh8',
+      '-op8KhsehkI',
+      'oztC9D43YxU',
+      '3Yx4dv7KodA',
+      'l_nZO3JVaq8',
+      'Q5bDzSwLE8w',
       '2OEL4P1Rz04',
-      'CjB_oVeq8Lo',
-      'f77SKdyn-1Y',
-      'eKFTssKCnsE',
-      'lTRiuFIWV54',
     ],
   },
   {
@@ -75,11 +75,11 @@ const playlists: Playlist[] = [
     name: 'Clássica',
     icon: '🎻',
     videoIds: [
-      'j24RuKVoagI',
-      '6N3hpfqGqro',
-      'P0QU0_FzQ18',
-      'sDLhLkA1W0I',
-      'YGQ6VYKc02M',
+      'yebh32JSs9g',
+      'OqqCctAhISQ',
+      'GcEgMFLU0-4',
+      'iqr3khMncqM',
+      'crZtuAqWzs8',
     ],
   },
   {
@@ -87,11 +87,37 @@ const playlists: Playlist[] = [
     name: 'Natureza',
     icon: '🌿',
     videoIds: [
-      'f77SKdyn-1Y',
+      '-wPg1tNEWmo',
       'eKFTssKCnsE',
       'V1bFr2SWP1J',
       '2OEL4P1Rz04',
       'CjB_oVeq8Lo',
+    ],
+  },
+  {
+    id: 'inspiracao',
+    name: 'Inspiração',
+    icon: '✨',
+    videoIds: [
+      '1fpNs9qLOhs',
+      '3Tb0NWTVtqE',
+      '2MWVuCsVdiw',
+      'jbwFDchsvBY',
+      'xSXzw1XiDVw',
+    ],
+  },
+  {
+    id: 'relax',
+    name: 'Relax',
+    icon: '😌',
+    videoIds: [
+      'CcAV71mXg_8',
+      'Uu3dshFseaU',
+      'ray1Svv6Sl8',
+      'TaXlw0OmSOg',
+      'DhHGDOgjie4',
+      'l0Nat5LK8yI',
+      'Uqq8_gNsCZg',
     ],
   },
 ];
@@ -107,6 +133,7 @@ function loadState() {
         videoIndex: parsed.videoIndex ?? Math.floor(Math.random() * playlist.videoIds.length),
         volume: parsed.volume ?? 0.5,
         isMuted: parsed.isMuted ?? false,
+        isLooping: parsed.isLooping ?? false,
       };
     }
   } catch {}
@@ -122,12 +149,48 @@ export function MusicPlayer() {
   );
   const [volume, setVolume] = useState(saved?.volume ?? 0.5);
   const [isMuted, setIsMuted] = useState(saved?.isMuted ?? false);
+  const [isLooping, setIsLooping] = useState(saved?.isLooping ?? false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPlaylistSelector, setShowPlaylistSelector] = useState(false);
+  const [isFading, setIsFading] = useState(false);
+  const [restartKey, setRestartKey] = useState(0);
   
 
   const currentVideoId = currentPlaylist.videoIds[currentVideoIndex];
   const videoUrl = `https://www.youtube.com/watch?v=${currentVideoId}`;
+
+  // Listen for events from store
+  useEffect(() => {
+    const handleSetPlaylist = (e: CustomEvent) => {
+      const playlist = playlists.find(p => p.id === e.detail.playlistId);
+      if (playlist) {
+        if (isPlaying) {
+          crossfade(() => {
+            setCurrentPlaylist(playlist);
+            const randomIndex = Math.floor(Math.random() * playlist.videoIds.length);
+            setCurrentVideoIndex(randomIndex);
+          });
+        } else {
+          setCurrentPlaylist(playlist);
+          const randomIndex = Math.floor(Math.random() * playlist.videoIds.length);
+          setCurrentVideoIndex(randomIndex);
+        }
+      }
+    };
+
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    window.addEventListener('music-set-playlist', handleSetPlaylist as EventListener);
+    window.addEventListener('music-play', handlePlay);
+    window.addEventListener('music-pause', handlePause);
+
+    return () => {
+      window.removeEventListener('music-set-playlist', handleSetPlaylist as EventListener);
+      window.removeEventListener('music-play', handlePlay);
+      window.removeEventListener('music-pause', handlePause);
+    };
+  }, [isPlaying]);
 
   // Save state to localStorage
   useEffect(() => {
@@ -136,8 +199,9 @@ export function MusicPlayer() {
       videoIndex: currentVideoIndex,
       volume,
       isMuted,
+      isLooping,
     }));
-  }, [currentPlaylist.id, currentVideoIndex, volume, isMuted]);
+  }, [currentPlaylist.id, currentVideoIndex, volume, isMuted, isLooping]);
 
   const togglePlay = () => {
     setIsPlaying(!isPlaying);
@@ -152,34 +216,97 @@ export function MusicPlayer() {
     setIsMuted(!isMuted);
   };
 
+  const crossfade = (callback: () => void) => {
+    if (isFading) return;
+    setIsFading(true);
+    
+    const startVolume = isMuted ? 0 : volume;
+    const fadeOutSteps = 10;
+    const fadeInSteps = 10;
+    const stepTime = 50;
+    let step = 0;
+    
+    // Fade out
+    const fadeOut = setInterval(() => {
+      step++;
+      const newVol = startVolume * (1 - step / fadeOutSteps);
+      setVolume(Math.max(0, newVol));
+      
+      if (step >= fadeOutSteps) {
+        clearInterval(fadeOut);
+        callback();
+        
+        // Fade in after brief pause
+        setTimeout(() => {
+          let fadeStep = 0;
+          const fadeIn = setInterval(() => {
+            fadeStep++;
+            const newVol = startVolume * (fadeStep / fadeInSteps);
+            setVolume(Math.min(startVolume, newVol));
+            
+            if (fadeStep >= fadeInSteps) {
+              clearInterval(fadeIn);
+              setIsFading(false);
+            }
+          }, stepTime);
+        }, 200);
+      }
+    }, stepTime);
+  };
+
   const selectPlaylist = (playlist: Playlist) => {
-    setCurrentPlaylist(playlist);
-    const randomIndex = Math.floor(Math.random() * playlist.videoIds.length);
-    setCurrentVideoIndex(randomIndex);
+    if (isPlaying) {
+      crossfade(() => {
+        setCurrentPlaylist(playlist);
+        const randomIndex = Math.floor(Math.random() * playlist.videoIds.length);
+        setCurrentVideoIndex(randomIndex);
+      });
+    } else {
+      setCurrentPlaylist(playlist);
+      const randomIndex = Math.floor(Math.random() * playlist.videoIds.length);
+      setCurrentVideoIndex(randomIndex);
+    }
     setShowPlaylistSelector(false);
-    setIsPlaying(false);
   };
 
   const nextTrack = () => {
-    const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
-    setCurrentVideoIndex(randomIndex);
+    if (isPlaying) {
+      crossfade(() => {
+        const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
+        setCurrentVideoIndex(randomIndex);
+      });
+    } else {
+      const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
+      setCurrentVideoIndex(randomIndex);
+    }
   };
 
   const prevTrack = () => {
-    const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
-    setCurrentVideoIndex(randomIndex);
+    if (isPlaying) {
+      crossfade(() => {
+        const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
+        setCurrentVideoIndex(randomIndex);
+      });
+    } else {
+      const randomIndex = Math.floor(Math.random() * currentPlaylist.videoIds.length);
+      setCurrentVideoIndex(randomIndex);
+    }
   };
 
   const handleEnded = useCallback(() => {
-    nextTrack();
-  }, [currentPlaylist.videoIds.length]);
+    if (isLooping) {
+      setRestartKey((k) => k + 1);
+    } else {
+      nextTrack();
+    }
+  }, [currentPlaylist.videoIds.length, isLooping, isPlaying]);
 
   return (
     <div className="relative">
       {/* Hidden React Player */}
       <div className="hidden">
         <ReactPlayer
-          
+          key={restartKey}
           src={videoUrl}
           playing={isPlaying}
           volume={isMuted ? 0 : volume}
@@ -302,6 +429,16 @@ export function MusicPlayer() {
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
               </svg>
+            </button>
+            
+            <button
+              onClick={() => setIsLooping(!isLooping)}
+              className={`p-1 transition-colors ${
+                isLooping ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+              title={isLooping ? 'Desligar loop' : 'Repetir música'}
+            >
+              <Repeat size={12} />
             </button>
           </div>
 

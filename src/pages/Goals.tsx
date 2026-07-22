@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useStore } from '@/store';
-import type { Goal } from '@/types';
 import { CoachingBanner } from '@/components/goals/CoachingBanner';
 import { ConsistencyCard } from '@/components/goals/ConsistencyCard';
 import { MotivationCard } from '@/components/goals/MotivationCard';
@@ -59,7 +58,10 @@ export function GoalsPage() {
           await addGoal(goal);
           await loadGoalsAnalytics();
         }}
-        onUpdate={updateGoal as (goal: Goal) => Promise<void>}
+        onUpdate={async (goal) => {
+          await updateGoal(goal);
+          await loadGoalsAnalytics();
+        }}
         onDelete={async (id) => {
           await deleteGoal(id);
           await loadGoalsAnalytics();

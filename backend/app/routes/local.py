@@ -953,7 +953,7 @@ def _generate_coaching_message(
         }
     elif days_since_last == 1:
         return {
-            "text": "Você não estudou ontem. Tudo bem — mas não deixa virar hábito.",
+            "text": "Você não estudou ontem. Não deixe virar Costume.",
             "subtext": "Que tal uma sessão rápida hoje?",
             "tone": "gentle",
             "icon": "Sun",

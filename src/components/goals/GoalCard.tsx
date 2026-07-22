@@ -9,15 +9,8 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onEdit, onDelete, animated = true }: GoalCardProps) {
-  const getTargetInMinutes = () => {
-    if (goal.unit === 'h') {
-      return goal.targetValue * 60;
-    }
-    return goal.targetValue;
-  };
-  
   const progress = goal.targetValue > 0 
-    ? Math.min(100, (goal.currentValue / getTargetInMinutes()) * 100) 
+    ? Math.min(100, (goal.currentValue / goal.targetValue) * 100) 
     : 0;
   
   const isCompleted = goal.status === 'completed';
@@ -101,7 +94,7 @@ export function GoalCard({ goal, onEdit, onDelete, animated = true }: GoalCardPr
         <div className="flex items-center justify-between text-sm">
           <span className="text-gray-400">
             {goal.unit === 'h' 
-              ? `${(goal.currentValue / 60).toFixed(1)} / ${goal.targetValue}`
+              ? `${goal.currentValue.toFixed(1)} / ${goal.targetValue}`
               : `${goal.currentValue} / ${goal.targetValue}`
             } {getUnitLabel()}
           </span>
