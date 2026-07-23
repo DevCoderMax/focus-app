@@ -1,5 +1,6 @@
 import { Check, Clock, Target, BookOpen, HelpCircle, Hash } from 'lucide-react';
 import type { Goal } from '@/types';
+import { ProgressBar } from '@/components/ProgressBar';
 
 interface GoalCardProps {
   goal: Goal;
@@ -108,14 +109,12 @@ export function GoalCard({ goal, onEdit, onDelete, animated = true }: GoalCardPr
           </span>
         </div>
         
-        <div className="h-2 bg-[#222] rounded-full overflow-hidden">
-          <div
-            className={`h-full rounded-full ${animated ? "transition-all duration-500" : ""} ${
-              isCompleted ? 'bg-green-500' : 'bg-white/30'
-            }`}
-            style={{ width: `${progress}%` }}
-          />
-        </div>
+        <ProgressBar
+          value={progress}
+          animated={animated}
+          trackClassName="bg-[#222]"
+          fillClassName={isCompleted ? 'bg-green-500' : 'bg-white/30'}
+        />
       </div>
       
       <div className="flex items-center justify-between mt-3 text-xs text-gray-500">

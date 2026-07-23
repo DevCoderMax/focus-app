@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import type { TopicMetrics, SubtopicMetrics } from '@/types';
 import { Modal } from '@/components/Modal';
+import { ProgressBar } from '@/components/ProgressBar';
 
 // Calculate confidence index: weighted by volume
 // forca = percentual_acerto * (total_questoes / 10)
@@ -755,14 +756,11 @@ export function DashboardPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <div className="flex-1 h-2 bg-gray-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        goal.isCompleted ? 'bg-green-500' : 'bg-white/30'
-                      }`}
-                      style={{ width: `${goal.progress}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={goal.progress}
+                    fillClassName={goal.isCompleted ? 'bg-green-500' : 'bg-white/30'}
+                    className="flex-1"
+                  />
                   <span className="text-xs text-gray-500 min-w-[80px] text-right">
                     {goal.currentValue} / {goal.targetValue} {goal.unit}
                   </span>

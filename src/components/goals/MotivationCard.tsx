@@ -1,6 +1,7 @@
 import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react';
 import { ScoreGauge } from './ScoreGauge';
 import type { MotivationData } from '@/types';
+import { ProgressBar } from '@/components/ProgressBar';
 
 interface MotivationCardProps {
   data: MotivationData;
@@ -67,12 +68,13 @@ export function MotivationCard({ data, animated = true }: MotivationCardProps) {
           {factors.map((factor) => (
             <div key={factor.label} className="flex items-center gap-2">
               <span className="text-gray-400 text-xs w-20">{factor.label}</span>
-              <div className="flex-1 h-2 bg-[#222] rounded-full overflow-hidden">
-                <div
-                  className={`h-full bg-white/30 rounded-full ${animated ? "transition-all duration-500" : ""}`}
-                  style={{ width: `${factor.value}%` }}
-                />
-              </div>
+              <ProgressBar
+                value={factor.value}
+                animated={animated}
+                trackClassName="bg-[#222]"
+                fillClassName="bg-white/30"
+                className="flex-1"
+              />
               <span className="text-gray-500 text-xs w-8 text-right">
                 {Math.round(factor.value)}
               </span>

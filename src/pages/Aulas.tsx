@@ -3,6 +3,7 @@ import { useStore } from '@/store';
 import { Button } from '@/components/Button';
 import { Input } from '@/components/Input';
 import { TopicSelector } from '@/components/TopicSelector';
+import { ProgressBar } from '@/components/ProgressBar';
 import { formatDate, generateId } from '@/utils/helpers';
 import type { ActivityPlanItem, ActivityPlanMaterialType } from '@/types';
 
@@ -269,12 +270,12 @@ export function AulasPage() {
                     </div>
                   </div>
 
-                  <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-true-white transition-all duration-300"
-                      style={{ width: `${Math.min(100, progress)}%` }}
-                    />
-                  </div>
+                  <ProgressBar
+                    value={progress}
+                    duration={300}
+                    trackClassName="bg-gray-700"
+                    className="w-full"
+                  />
 
                   <div className="flex flex-wrap gap-2">
                     <Button
